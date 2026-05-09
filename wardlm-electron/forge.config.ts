@@ -20,7 +20,7 @@ const config: ForgeConfig = {
         maintainer: 'Daniel Salmun <salmundani@gmail.com>',
         categories: ['System', 'Utility'],
         productDescription:
-          'Real-time viewer for the lmwrap audit log (/var/log/lmwrap/lmwrap.log).',
+          'Real-time viewer for the wardlm audit log (/var/log/wardlm/wardlm.log).',
         section: 'admin',
         icon: './assets/icon.png',
         scripts: {

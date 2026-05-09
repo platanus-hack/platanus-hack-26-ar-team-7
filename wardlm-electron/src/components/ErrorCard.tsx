@@ -17,7 +17,7 @@ function bodyFor(code: string, path: string): React.ReactNode {
   if (code === 'ENOENT') {
     return (
       <>
-        <code>{path}</code> does not exist. Make sure lmwrap is installed and
+        <code>{path}</code> does not exist. Make sure wardlm is installed and
         has produced at least one log entry.
       </>
     );

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-APPARMOR_PROFILE_TARGET='/etc/apparmor.d/lmward'
+APPARMOR_PROFILE_TARGET='/etc/apparmor.d/wardlm'
 
 if [ -f "$APPARMOR_PROFILE_TARGET" ]; then
     rm -f "$APPARMOR_PROFILE_TARGET"

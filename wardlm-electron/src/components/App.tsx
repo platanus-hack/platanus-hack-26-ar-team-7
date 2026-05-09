@@ -55,7 +55,7 @@ const ALL_LEVELS = new Set<Level | 'none'>([
 
 function loadTheme(): 'light' | 'dark' {
   try {
-    const v = localStorage.getItem('lmwrap.theme');
+    const v = localStorage.getItem('wardlm.theme');
     if (v === 'light' || v === 'dark') return v;
   } catch {
     /* ignore */
@@ -64,7 +64,7 @@ function loadTheme(): 'light' | 'dark' {
 }
 
 const initialState: State = {
-  path: '/var/log/lmwrap/lmwrap.log',
+  path: '/var/log/wardlm/wardlm.log',
   lines: [],
   totalSeen: 0,
   query: '',
@@ -141,7 +141,7 @@ function reducer(state: State, action: Action): State {
       return { ...state, newCount: 0 };
     case 'TOGGLE_THEME': {
       const theme = state.theme === 'dark' ? 'light' : 'dark';
-      try { localStorage.setItem('lmwrap.theme', theme); } catch { /* ignore */ }
+      try { localStorage.setItem('wardlm.theme', theme); } catch { /* ignore */ }
       return { ...state, theme };
     }
     default:
@@ -159,7 +159,7 @@ export function App(): JSX.Element {
   useEffect(() => {
     let cancelled = false;
 
-    void window.lmwrap
+    void window.wardlm
       .getInitial()
       .then((payload) => {
         if (cancelled) return;
@@ -172,13 +172,13 @@ export function App(): JSX.Element {
         });
       });
 
-    const offLine = window.lmwrap.onLine((line) =>
+    const offLine = window.wardlm.onLine((line) =>
       dispatch({ type: 'APPEND', line }),
     );
-    const offRotated = window.lmwrap.onRotated(() =>
+    const offRotated = window.wardlm.onRotated(() =>
       dispatch({ type: 'ROTATED' }),
     );
-    const offError = window.lmwrap.onError((err) =>
+    const offError = window.wardlm.onError((err) =>
       dispatch({ type: 'ERROR', err }),
     );
 
@@ -209,7 +209,7 @@ export function App(): JSX.Element {
   const handleRetry = async () => {
     dispatch({ type: 'CLEAR_ERROR' });
     try {
-      const payload = await window.lmwrap.retry();
+      const payload = await window.wardlm.retry();
       dispatch({ type: 'INIT', payload });
     } catch (err) {
       const e = err as Error;

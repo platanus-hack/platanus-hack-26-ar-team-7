@@ -1,8 +1,8 @@
 {
-  "name": "lmward",
-  "productName": "lmward",
+  "name": "wardlm",
+  "productName": "wardlm",
   "version": "1.0.0",
-  "description": "Real-time desktop viewer for the lmwrap audit log.",
+  "description": "Real-time desktop viewer for the wardlm audit log.",
   "main": ".webpack/main",
   "private": true,
   "scripts": {

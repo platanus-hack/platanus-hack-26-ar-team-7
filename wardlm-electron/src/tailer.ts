@@ -8,7 +8,7 @@ const INITIAL_LINES = 2000;
 const MAX_INITIAL_BYTES = 8 * 1024 * 1024;
 const MAX_LINE_BYTES = 1 * 1024 * 1024;
 
-export const DEFAULT_LOG_PATH = '/var/log/lmwrap/lmwrap.log';
+export const DEFAULT_LOG_PATH = '/var/log/wardlm/wardlm.log';
 
 export type TailerError = { code: string; message: string };
 

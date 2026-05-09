@@ -15,7 +15,7 @@ if (process.platform === 'linux') {
 
 Menu.setApplicationMenu(null);
 
-const LOG_PATH = process.env.LMWRAP_LOG_PATH || DEFAULT_LOG_PATH;
+const LOG_PATH = process.env.WARDLM_LOG_PATH || DEFAULT_LOG_PATH;
 const RING_LIMIT = 2000;
 
 let mainWindow: BrowserWindow | null = null;

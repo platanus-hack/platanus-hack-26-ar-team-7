@@ -17,7 +17,7 @@ export type InitialPayload = {
   error: LogErrorPayload | null;
 };
 
-export type LmwrapApi = {
+export type WardlmApi = {
   getInitial: () => Promise<InitialPayload>;
   retry: () => Promise<InitialPayload>;
   onLine: (cb: (line: string) => void) => () => void;
@@ -27,6 +27,6 @@ export type LmwrapApi = {
 
 declare global {
   interface Window {
-    lmwrap: LmwrapApi;
+    wardlm: WardlmApi;
   }
 }
