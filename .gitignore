@@ -58,6 +58,7 @@ dkms.conf
 .idea/
 
 .DS_Store
+Archive
 
 .claude
 .codex

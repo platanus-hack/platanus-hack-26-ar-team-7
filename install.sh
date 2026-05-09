@@ -135,8 +135,26 @@ export PATH="/opt/wardlm/shim:$PATH"
 EOF
 sudo chmod 0644 /etc/profile.d/wardlm.sh
 
-# ---------- Phase 7: per-user setup ----------
-log "per-user setup in ~/.wardlm/ (API key only; settings are managed by wardlm-electron)"
+# ---------- Phase 7: per-user setup ----------log "per-user setup"
+
+# Seed ~/.config/wardlm/settings.json with the repo defaults if missing.
+# wardlm-electron writes this file on first launch; we replicate the same
+# behaviour so --skip-electron installs still get a populated config and
+# the wardlm CLI starts with consistent securityChecks (in particular,
+# obfuscation=false to avoid false-positives on agents using base64+eval).
+xdg_config="${XDG_CONFIG_HOME:-}"
+[[ "$xdg_config" = /* ]] || xdg_config="$HOME/.config"
+config_dir="$xdg_config/wardlm"
+settings_file="$config_dir/settings.json"
+mkdir -p "$config_dir"
+if [ ! -f "$settings_file" ]; then
+    cp "$REPO/wardlm/config/settings.json" "$settings_file"
+    chmod 0644 "$settings_file"
+    log "wrote $settings_file (defaults from repo)"
+else
+    log "preserving existing $settings_file"
+fi
+
 mkdir -p "$HOME/.wardlm"
 chmod 0700 "$HOME/.wardlm"
 
@@ -172,6 +190,9 @@ marker="# wardlm: ensure shim dir wins PATH"
 if [ -f "$bashrc" ] && ! grep -qF "$marker" "$bashrc"; then
     {
         printf '\n%s\n' "$marker"
+        # $PATH must remain a literal here; it gets expanded when
+        # .bashrc is sourced later, not when this installer runs.
+        # shellcheck disable=SC2016
         printf 'export PATH="/opt/wardlm/shim:$PATH"\n'
     } >> "$bashrc"
     log "appended PATH prepend to ~/.bashrc"
