@@ -23,6 +23,10 @@ const config: ForgeConfig = {
           'Real-time viewer for the lmwrap audit log (/var/log/lmwrap/lmwrap.log).',
         section: 'admin',
         icon: './assets/icon.png',
+        scripts: {
+          postinst: './assets/linux/postinst',
+          postrm: './assets/linux/postrm',
+        },
       },
     }),
   ],

@@ -1,0 +1,28 @@
+#!/bin/bash
+set -e
+
+APPARMOR_PROFILE_TARGET='/etc/apparmor.d/lmward'
+
+if command -v apparmor_status >/dev/null 2>&1 && apparmor_status --enabled >/dev/null 2>&1; then
+    cat > "$APPARMOR_PROFILE_TARGET" <<'EOF'
+abi <abi/4.0>,
+include <tunables/global>
+
+profile lmward "/usr/lib/lmward/lmward" flags=(unconfined) {
+  userns,
+
+  include if exists <local/lmward>
+}
+EOF
+
+    if apparmor_parser --skip-kernel-load --debug "$APPARMOR_PROFILE_TARGET" >/dev/null 2>&1; then
+        if ! { [ -x /usr/bin/ischroot ] && /usr/bin/ischroot; }; then
+            apparmor_parser --replace --write-cache --skip-read-cache "$APPARMOR_PROFILE_TARGET" || true
+        fi
+    else
+        echo "lmward: skipping AppArmor profile (this AppArmor version does not support the bundled profile)" >&2
+        rm -f "$APPARMOR_PROFILE_TARGET"
+    fi
+fi
+
+exit 0

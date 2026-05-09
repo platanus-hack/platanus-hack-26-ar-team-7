@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+APPARMOR_PROFILE_TARGET='/etc/apparmor.d/lmward'
+
+if [ -f "$APPARMOR_PROFILE_TARGET" ]; then
+    rm -f "$APPARMOR_PROFILE_TARGET"
+fi
+
+exit 0
