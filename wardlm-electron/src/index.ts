@@ -2,7 +2,15 @@ import { app, BrowserWindow, Menu, ipcMain } from 'electron';
 import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
 import { LogTailer, DEFAULT_LOG_PATH, TailerError } from './tailer';
-import { IPC, InitialPayload, Settings, StatsPayload, AgentKey } from './shared';
+import {
+  IPC,
+  InitialPayload,
+  Settings,
+  StatsPayload,
+  AgentKey,
+  AgentBreakdown,
+  AGENTS,
+} from './shared';
 import * as settingsStore from './settingsStore';
 import { CACHE_DIR, DATA_DIR, STATE_DIR } from './paths';
 
@@ -147,10 +155,21 @@ ipcMain.handle(
   (_e, patch: Partial<Settings>): Promise<Settings> => settingsStore.set(patch),
 );
 
+const SHIM_TO_KEY: Record<string, AgentKey> = Object.fromEntries(
+  AGENTS.map((a) => [a.shim, a.key]),
+);
+SHIM_TO_KEY['claude-code'] = 'claude';
+
 function classifyAgent(value: unknown): AgentKey {
-  if (value === 'claude-code') return 'claudeCode';
-  if (value === 'codex') return 'codex';
-  return 'other';
+  if (typeof value !== 'string') return 'other';
+  return SHIM_TO_KEY[value] ?? 'other';
+}
+
+function emptyAgents(): Record<AgentKey, AgentBreakdown> {
+  const keys: AgentKey[] = [...AGENTS.map((a) => a.key), 'other'];
+  return Object.fromEntries(
+    keys.map((k) => [k, { total: 0, allowed: 0, denied: 0 }]),
+  ) as Record<AgentKey, AgentBreakdown>;
 }
 
 ipcMain.handle(IPC.GetStats, async (): Promise<StatsPayload> => {
@@ -158,11 +177,7 @@ ipcMain.handle(IPC.GetStats, async (): Promise<StatsPayload> => {
     total: 0,
     allowed: 0,
     denied: 0,
-    agents: {
-      claudeCode: { total: 0, allowed: 0, denied: 0 },
-      codex: { total: 0, allowed: 0, denied: 0 },
-      other: { total: 0, allowed: 0, denied: 0 },
-    },
+    agents: emptyAgents(),
     scannedAt: Date.now(),
   };
   try {

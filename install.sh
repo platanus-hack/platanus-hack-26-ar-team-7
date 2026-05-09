@@ -164,26 +164,13 @@ if [ -n "$key" ]; then
     log "wrote ~/.wardlm/env"
 fi
 
-# Ensure /opt/wardlm/shim wins PATH even when .bashrc later prepends
-# other dirs (e.g. ~/.local/bin, ~/.npm-global/bin). /etc/profile.d
-# alone is not enough because user shell rc files run after it.
-bashrc="$HOME/.bashrc"
-marker="# wardlm: ensure shim dir wins PATH"
-if [ -f "$bashrc" ] && ! grep -qF "$marker" "$bashrc"; then
-    {
-        printf '\n%s\n' "$marker"
-        printf 'export PATH="/opt/wardlm/shim:$PATH"\n'
-    } >> "$bashrc"
-    log "appended PATH prepend to ~/.bashrc"
-fi
-
 # ---------- Phase 8: summary ----------
 cat <<'EOF'
 
   wardlm installed.
 
   CLI binary:    /opt/wardlm/bin/wardlm
-  Shims:         /opt/wardlm/shim/   (25 agents)
+  Shims:         /opt/wardlm/shim/   (12 agents)
   Audit log:     /var/log/wardlm/wardlm.log
   PATH config:   /etc/profile.d/wardlm.sh
   User config:   ~/.config/wardlm/settings.json   (managed by wardlm-electron)

@@ -297,6 +297,44 @@ pre {
 .agent-stat--emerald .agent-stat__value { color: var(--emerald); }
 .agent-stat--rose    .agent-stat__value { color: var(--rose); }
 
+.agents__inactive {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agents__inactive > summary {
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  padding: 8px 4px;
+  user-select: none;
+  list-style: none;
+}
+
+.agents__inactive > summary::-webkit-details-marker {
+  display: none;
+}
+
+.agents__inactive > summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 120ms ease;
+  font-size: 10px;
+}
+
+.agents__inactive[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.agents__inactive[open] > summary {
+  margin-bottom: 2px;
+}
+
 /* Settings ---------------------------------------------------------------- */
 
 .settings {

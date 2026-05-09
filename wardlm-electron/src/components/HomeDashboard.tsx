@@ -1,7 +1,20 @@
 import React from 'react';
 import { Boxes } from 'lucide-react';
-import { AgentBreakdown, AgentKey } from '../shared';
-import { ClaudeCodeIcon, CodexIcon } from './icons/AgentIcons';
+import { AGENTS, AgentBreakdown, AgentKey } from '../shared';
+import {
+  AmpIcon,
+  ClaudeCodeIcon,
+  CodexIcon,
+  CopilotIcon,
+  CrewAIIcon,
+  CursorIcon,
+  GeminiIcon,
+  GooseIcon,
+  ManusIcon,
+  MetaGPTIcon,
+  OpenClawIcon,
+  OpenCodeIcon,
+} from './icons/AgentIcons';
 
 export type DashboardStats = {
   total: number;
@@ -16,7 +29,38 @@ type Props = {
 
 const fmt = new Intl.NumberFormat('en-US');
 
+const ICON_SIZE = 22;
+
+const AGENT_ICONS: Record<AgentKey, JSX.Element> = {
+  claude: <ClaudeCodeIcon size={ICON_SIZE} />,
+  codex: <CodexIcon size={ICON_SIZE} />,
+  copilot: <CopilotIcon size={ICON_SIZE} />,
+  cursorAgent: <CursorIcon size={ICON_SIZE} />,
+  gemini: <GeminiIcon size={ICON_SIZE} />,
+  amp: <AmpIcon size={ICON_SIZE} />,
+  goose: <GooseIcon size={ICON_SIZE} />,
+  opencode: <OpenCodeIcon size={ICON_SIZE} />,
+  openclaw: <OpenClawIcon size={ICON_SIZE} />,
+  metagpt: <MetaGPTIcon size={ICON_SIZE} />,
+  crewai: <CrewAIIcon size={ICON_SIZE} />,
+  manus: <ManusIcon size={ICON_SIZE} />,
+  other: <Boxes size={ICON_SIZE} strokeWidth={1.75} />,
+};
+
+type Row = { key: AgentKey; label: string; breakdown: AgentBreakdown };
+
 export function HomeDashboard({ stats }: Props): JSX.Element {
+  const rows: Row[] = [
+    ...AGENTS.map((a) => ({
+      key: a.key,
+      label: a.label,
+      breakdown: stats.agents[a.key],
+    })),
+    { key: 'other' as const, label: 'Other', breakdown: stats.agents.other },
+  ];
+  const active = rows.filter((r) => r.breakdown.total > 0);
+  const inactive = rows.filter((r) => r.breakdown.total === 0);
+
   return (
     <div className="dashboard">
       <header className="dashboard__header">
@@ -33,21 +77,27 @@ export function HomeDashboard({ stats }: Props): JSX.Element {
 
       <h2 className="dashboard__section-title">Agents</h2>
       <div className="agents">
-        <AgentRow
-          icon={<ClaudeCodeIcon size={22} />}
-          label="Claude Code"
-          breakdown={stats.agents.claudeCode}
-        />
-        <AgentRow
-          icon={<CodexIcon size={22} />}
-          label="Codex"
-          breakdown={stats.agents.codex}
-        />
-        <AgentRow
-          icon={<Boxes size={22} strokeWidth={1.75} />}
-          label="Other"
-          breakdown={stats.agents.other}
-        />
+        {active.map((r) => (
+          <AgentRow
+            key={r.key}
+            icon={AGENT_ICONS[r.key]}
+            label={r.label}
+            breakdown={r.breakdown}
+          />
+        ))}
+        {inactive.length > 0 && (
+          <details className="agents__inactive">
+            <summary>Inactive ({inactive.length})</summary>
+            {inactive.map((r) => (
+              <AgentRow
+                key={r.key}
+                icon={AGENT_ICONS[r.key]}
+                label={r.label}
+                breakdown={r.breakdown}
+              />
+            ))}
+          </details>
+        )}
       </div>
     </div>
   );
