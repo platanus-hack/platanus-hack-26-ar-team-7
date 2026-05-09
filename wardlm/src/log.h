@@ -1,5 +1,5 @@
-#ifndef EXEC_GUARD_LOG_H
-#define EXEC_GUARD_LOG_H
+#ifndef WARDLM_LOG_H
+#define WARDLM_LOG_H
 
 #include <sys/types.h>
 
@@ -7,6 +7,10 @@
  * The pointer is stored as-is (not copied) — caller keeps ownership and
  * must keep it alive for the process lifetime. */
 void log_set_path(const char *path);
+
+/* Sets the agent name emitted in each log line. Stored as-is (not
+ * copied). NULL is treated as the empty string. */
+void log_set_agent(const char *agent);
 
 /* Appends a single JSONL line to the configured log file. Argv is an
  * array of `argc` strings. Strings are JSON-escaped. */

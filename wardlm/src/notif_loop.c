@@ -18,13 +18,13 @@
 void notif_loop(int listener_fd, volatile sig_atomic_t *stop_flag) {
     struct seccomp_notif_sizes sizes;
     if (syscall(__NR_seccomp, SECCOMP_GET_NOTIF_SIZES, 0, &sizes) < 0) {
-        perror("[exec-guard] SECCOMP_GET_NOTIF_SIZES");
+        perror("[wardlm] SECCOMP_GET_NOTIF_SIZES");
         return;
     }
     struct seccomp_notif *req = calloc(1, sizes.seccomp_notif);
     struct seccomp_notif_resp *resp = calloc(1, sizes.seccomp_notif_resp);
     if (!req || !resp) {
-        perror("[exec-guard] calloc");
+        perror("[wardlm] calloc");
         free(req); free(resp);
         return;
     }
@@ -39,7 +39,7 @@ void notif_loop(int listener_fd, volatile sig_atomic_t *stop_flag) {
                 continue;
             }
             if (errno == ENOENT) continue;
-            perror("[exec-guard] NOTIF_RECV");
+            perror("[wardlm] NOTIF_RECV");
             break;
         }
 
@@ -77,7 +77,7 @@ void notif_loop(int listener_fd, volatile sig_atomic_t *stop_flag) {
             resp->val = 0;
             resp->flags = 0;
             log_jsonl("deny", reason, (pid_t)req->pid, path, argv, argc);
-            fprintf(stderr, "[exec-guard] DENY pid=%u path=%s\n",
+            fprintf(stderr, "[wardlm] DENY pid=%u path=%s\n",
                     (unsigned)req->pid, path);
         } else {
             resp->error = 0;
@@ -88,7 +88,7 @@ void notif_loop(int listener_fd, volatile sig_atomic_t *stop_flag) {
 
         if (ioctl(listener_fd, SECCOMP_IOCTL_NOTIF_SEND, resp) < 0
             && errno != ENOENT) {
-            perror("[exec-guard] NOTIF_SEND");
+            perror("[wardlm] NOTIF_SEND");
         }
 
         free_argv(argv, argc);

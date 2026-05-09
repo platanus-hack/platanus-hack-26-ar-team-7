@@ -1,5 +1,5 @@
-#ifndef EXEC_GUARD_NOTIF_LOOP_H
-#define EXEC_GUARD_NOTIF_LOOP_H
+#ifndef WARDLM_NOTIF_LOOP_H
+#define WARDLM_NOTIF_LOOP_H
 
 #include <signal.h>
 

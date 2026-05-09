@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# PATH shim for wardlm. The wardlm installer puts this file's directory
+# in front of PATH so this script intercepts calls to the agent. The
+# script's own filename is both the command name and the agent label
+# emitted in the unified log.
+
+set -euo pipefail
+
+self_dir="$(cd "$(dirname "$0")" && pwd)"
+name="$(basename "$0")"
+
+# Find the real binary by walking PATH, skipping our own directory.
+real=""
+IFS=':' read -ra dirs <<< "$PATH"
+for d in "${dirs[@]}"; do
+    [ -z "$d" ] && d="."
+    [ "$(cd "$d" 2>/dev/null && pwd)" = "$self_dir" ] && continue
+    if [ -x "$d/$name" ]; then
+        real="$d/$name"
+        break
+    fi
+done
+
+if [ -z "$real" ]; then
+    echo "wardlm: real '$name' binary not found in PATH" >&2
+    exit 127
+fi
+
+# Pull API key from per-user env file if not already in environment.
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -f "$HOME/.wardlm/env" ]; then
+    # shellcheck disable=SC1091
+    . "$HOME/.wardlm/env"
+fi
+
+WARDLM_BIN="${WARDLM_BIN:-/opt/wardlm/bin/wardlm}"
+
+exec "$WARDLM_BIN" --agent "$name" -- "$real" "$@"

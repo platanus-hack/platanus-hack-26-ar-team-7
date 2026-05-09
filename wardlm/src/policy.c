@@ -20,9 +20,9 @@ int policy_should_block(const char *path,
     }
 
     /* API call failed. Default to fail-closed (deny) — opt out with
-     * EXEC_GUARD_FAIL_OPEN=1 if the supervised tool must keep running
+     * WARDLM_FAIL_OPEN=1 if the supervised tool must keep running
      * when the policy backend is unreachable. */
-    if (getenv("EXEC_GUARD_FAIL_OPEN")) {
+    if (getenv("WARDLM_FAIL_OPEN")) {
         return 0;
     }
     static char unavailable_buf[280];

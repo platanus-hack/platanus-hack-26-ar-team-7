@@ -1,5 +1,5 @@
-#ifndef EXEC_GUARD_FILTER_H
-#define EXEC_GUARD_FILTER_H
+#ifndef WARDLM_FILTER_H
+#define WARDLM_FILTER_H
 
 /* Sets PR_SET_NO_NEW_PRIVS and installs a seccomp BPF filter that traps
  * execve and execveat with SECCOMP_RET_USER_NOTIF. Returns the user

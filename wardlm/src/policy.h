@@ -1,5 +1,5 @@
-#ifndef EXEC_GUARD_POLICY_H
-#define EXEC_GUARD_POLICY_H
+#ifndef WARDLM_POLICY_H
+#define WARDLM_POLICY_H
 
 /* Returns 1 if the exec of `path` with `argv` should be blocked, 0
  * otherwise. argv has `argc` entries (no trailing NULL counted). On
