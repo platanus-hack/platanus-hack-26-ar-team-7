@@ -5,11 +5,9 @@ type Props = {
   query: string;
   enabledLevels: Set<Level | 'none'>;
   autoScroll: boolean;
-  theme: 'light' | 'dark';
   onQueryChange: (q: string) => void;
   onToggleLevel: (level: Level | 'none') => void;
   onToggleAutoScroll: () => void;
-  onToggleTheme: () => void;
 };
 
 const LEVEL_LABELS: Record<Level, string> = {
@@ -25,11 +23,9 @@ export function Toolbar({
   query,
   enabledLevels,
   autoScroll,
-  theme,
   onQueryChange,
   onToggleLevel,
   onToggleAutoScroll,
-  onToggleTheme,
 }: Props): JSX.Element {
   return (
     <div className="toolbar">
@@ -77,14 +73,6 @@ export function Toolbar({
           title={autoScroll ? 'Pause auto-scroll' : 'Resume auto-scroll'}
         >
           {autoScroll ? 'Pause' : 'Follow'}
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={onToggleTheme}
-          title="Toggle theme"
-        >
-          {theme === 'dark' ? 'Light' : 'Dark'}
         </button>
       </div>
     </div>

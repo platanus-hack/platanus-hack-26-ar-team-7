@@ -4,7 +4,7 @@ import React, {
   useReducer,
   useDeferredValue,
 } from 'react';
-import { InitialPayload, LogErrorPayload } from '../shared';
+import { InitialPayload, LogErrorPayload, StatsPayload } from '../shared';
 import { Level, detectLevel } from './levels';
 import { TitleBar } from './TitleBar';
 import { Toolbar } from './Toolbar';
@@ -12,6 +12,9 @@ import { LogView } from './LogView';
 import { StatusBar } from './StatusBar';
 import { PermissionCard } from './PermissionCard';
 import { ErrorCard } from './ErrorCard';
+import { Sidebar, View } from './Sidebar';
+import { DashboardStats, HomeDashboard } from './HomeDashboard';
+import { SettingsView } from './SettingsView';
 
 const MAX_LINES = 5000;
 
@@ -35,6 +38,8 @@ type State = {
   lastEventAt: number | null;
   status: 'connecting' | 'live' | 'error';
   nextId: number;
+  view: View;
+  stats: DashboardStats;
 };
 
 type Action =
@@ -47,7 +52,9 @@ type Action =
   | { type: 'TOGGLE_LEVEL'; level: Level | 'none' }
   | { type: 'TOGGLE_AUTOSCROLL'; value?: boolean }
   | { type: 'RESET_NEW_COUNT' }
-  | { type: 'TOGGLE_THEME' };
+  | { type: 'TOGGLE_THEME' }
+  | { type: 'SET_VIEW'; view: View }
+  | { type: 'SET_STATS'; stats: StatsPayload };
 
 const ALL_LEVELS = new Set<Level | 'none'>([
   'fatal', 'error', 'warn', 'info', 'debug', 'trace', 'none',
@@ -61,6 +68,17 @@ function loadTheme(): 'light' | 'dark' {
     /* ignore */
   }
   return 'dark';
+}
+
+function parseDecision(text: string): 'allow' | 'deny' | null {
+  try {
+    const obj = JSON.parse(text) as { decision?: unknown };
+    if (obj.decision === 'allow') return 'allow';
+    if (obj.decision === 'deny') return 'deny';
+  } catch {
+    /* not JSONL — ignore */
+  }
+  return null;
 }
 
 const initialState: State = {
@@ -77,6 +95,8 @@ const initialState: State = {
   lastEventAt: null,
   status: 'connecting',
   nextId: 0,
+  view: 'home',
+  stats: { total: 0, allowed: 0, denied: 0 },
 };
 
 function makeRecord(text: string, id: number): LineRecord {
@@ -89,6 +109,12 @@ function appendLine(state: State, text: string): State {
   if (lines.length >= MAX_LINES) {
     lines = lines.slice(lines.length - MAX_LINES + 1);
   }
+  const decision = parseDecision(text);
+  const stats: DashboardStats = {
+    total: state.stats.total + 1,
+    allowed: state.stats.allowed + (decision === 'allow' ? 1 : 0),
+    denied: state.stats.denied + (decision === 'deny' ? 1 : 0),
+  };
   return {
     ...state,
     lines: [...lines, rec],
@@ -98,6 +124,7 @@ function appendLine(state: State, text: string): State {
     nextId: state.nextId + 1,
     status: 'live',
     error: null,
+    stats,
   };
 }
 
@@ -144,6 +171,17 @@ function reducer(state: State, action: Action): State {
       try { localStorage.setItem('wardlm.theme', theme); } catch { /* ignore */ }
       return { ...state, theme };
     }
+    case 'SET_VIEW':
+      return { ...state, view: action.view };
+    case 'SET_STATS':
+      return {
+        ...state,
+        stats: {
+          total: action.stats.total,
+          allowed: action.stats.allowed,
+          denied: action.stats.denied,
+        },
+      };
     default:
       return state;
   }
@@ -159,11 +197,24 @@ export function App(): JSX.Element {
   useEffect(() => {
     let cancelled = false;
 
+    const refreshStats = () => {
+      void window.wardlm
+        .getStats()
+        .then((stats) => {
+          if (cancelled) return;
+          dispatch({ type: 'SET_STATS', stats });
+        })
+        .catch(() => {
+          /* ignore — counts stay live via APPEND */
+        });
+    };
+
     void window.wardlm
       .getInitial()
       .then((payload) => {
         if (cancelled) return;
         dispatch({ type: 'INIT', payload });
+        refreshStats();
       })
       .catch((err: Error) => {
         dispatch({
@@ -175,9 +226,10 @@ export function App(): JSX.Element {
     const offLine = window.wardlm.onLine((line) =>
       dispatch({ type: 'APPEND', line }),
     );
-    const offRotated = window.wardlm.onRotated(() =>
-      dispatch({ type: 'ROTATED' }),
-    );
+    const offRotated = window.wardlm.onRotated(() => {
+      dispatch({ type: 'ROTATED' });
+      refreshStats();
+    });
     const offError = window.wardlm.onError((err) =>
       dispatch({ type: 'ERROR', err }),
     );
@@ -211,6 +263,8 @@ export function App(): JSX.Element {
     try {
       const payload = await window.wardlm.retry();
       dispatch({ type: 'INIT', payload });
+      const stats = await window.wardlm.getStats();
+      dispatch({ type: 'SET_STATS', stats });
     } catch (err) {
       const e = err as Error;
       dispatch({
@@ -220,61 +274,83 @@ export function App(): JSX.Element {
     }
   };
 
-  if (state.error && state.lines.length === 0) {
+  const sidebar = (
+    <Sidebar
+      view={state.view}
+      onSelect={(view) => dispatch({ type: 'SET_VIEW', view })}
+    />
+  );
+
+  if (state.error && state.lines.length === 0 && state.view === 'logs') {
     return (
       <div className="app">
-        <TitleBar path={state.path} status={state.status} />
-        {state.error.code === 'EACCES' ? (
-          <PermissionCard
-            path={state.path}
-            message={state.error.message}
-            onRetry={handleRetry}
-          />
-        ) : (
-          <ErrorCard
-            path={state.path}
-            code={state.error.code}
-            message={state.error.message}
-            onRetry={handleRetry}
-          />
-        )}
+        {sidebar}
+        <main className="app__main">
+          <TitleBar path={state.path} />
+          {state.error.code === 'EACCES' ? (
+            <PermissionCard
+              path={state.path}
+              message={state.error.message}
+              onRetry={handleRetry}
+            />
+          ) : (
+            <ErrorCard
+              path={state.path}
+              code={state.error.code}
+              message={state.error.message}
+              onRetry={handleRetry}
+            />
+          )}
+        </main>
       </div>
     );
   }
 
   return (
     <div className="app">
-      <TitleBar path={state.path} status={state.status} />
-      <Toolbar
-        query={state.query}
-        enabledLevels={state.enabledLevels}
-        autoScroll={state.autoScroll}
-        theme={state.theme}
-        onQueryChange={(q) => dispatch({ type: 'SET_QUERY', query: q })}
-        onToggleLevel={(level) => dispatch({ type: 'TOGGLE_LEVEL', level })}
-        onToggleAutoScroll={() => dispatch({ type: 'TOGGLE_AUTOSCROLL' })}
-        onToggleTheme={() => dispatch({ type: 'TOGGLE_THEME' })}
-      />
-      <LogView
-        lines={visibleLines}
-        autoScroll={state.autoScroll}
-        newCount={state.newCount}
-        onUserScrollUp={() =>
-          dispatch({ type: 'TOGGLE_AUTOSCROLL', value: false })
-        }
-        onJumpToLatest={() =>
-          dispatch({ type: 'TOGGLE_AUTOSCROLL', value: true })
-        }
-      />
-      <StatusBar
-        totalSeen={state.totalSeen}
-        visible={visibleLines.length}
-        lastEventAt={state.lastEventAt}
-        rotatedAt={state.rotatedAt}
-        status={state.error ? 'error' : state.status}
-        errorMessage={state.error?.message ?? null}
-        onRetry={handleRetry}
-      />
+      {sidebar}
+      <main className="app__main">
+        {state.view === 'home' ? (
+          <HomeDashboard stats={state.stats} />
+        ) : state.view === 'settings' ? (
+          <SettingsView
+            theme={state.theme}
+            onToggleTheme={() => dispatch({ type: 'TOGGLE_THEME' })}
+          />
+        ) : (
+          <>
+            <TitleBar path={state.path} />
+            <Toolbar
+              query={state.query}
+              enabledLevels={state.enabledLevels}
+              autoScroll={state.autoScroll}
+              onQueryChange={(q) => dispatch({ type: 'SET_QUERY', query: q })}
+              onToggleLevel={(level) => dispatch({ type: 'TOGGLE_LEVEL', level })}
+              onToggleAutoScroll={() => dispatch({ type: 'TOGGLE_AUTOSCROLL' })}
+            />
+            <LogView
+              lines={visibleLines}
+              autoScroll={state.autoScroll}
+              newCount={state.newCount}
+              onUserScrollUp={() =>
+                dispatch({ type: 'TOGGLE_AUTOSCROLL', value: false })
+              }
+              onJumpToLatest={() =>
+                dispatch({ type: 'TOGGLE_AUTOSCROLL', value: true })
+              }
+            />
+            <StatusBar
+              totalSeen={state.totalSeen}
+              visible={visibleLines.length}
+              lastEventAt={state.lastEventAt}
+              rotatedAt={state.rotatedAt}
+              status={state.error ? 'error' : state.status}
+              errorMessage={state.error?.message ?? null}
+              onRetry={handleRetry}
+            />
+          </>
+        )}
+      </main>
     </div>
   );
 }

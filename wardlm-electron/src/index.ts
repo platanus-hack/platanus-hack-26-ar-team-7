@@ -1,6 +1,8 @@
 import { app, BrowserWindow, Menu, ipcMain } from 'electron';
+import { createReadStream } from 'fs';
+import { createInterface } from 'readline';
 import { LogTailer, DEFAULT_LOG_PATH, TailerError } from './tailer';
-import { IPC, InitialPayload } from './shared';
+import { IPC, InitialPayload, StatsPayload } from './shared';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -86,6 +88,10 @@ const createWindow = (): void => {
 
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
 
+  if (!app.isPackaged) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  }
+
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (url !== MAIN_WINDOW_WEBPACK_ENTRY) event.preventDefault();
@@ -105,6 +111,34 @@ ipcMain.handle(IPC.GetInitial, async (): Promise<InitialPayload> => {
 
 ipcMain.handle(IPC.Retry, async (): Promise<InitialPayload> => {
   return startTailer();
+});
+
+ipcMain.handle(IPC.GetStats, async (): Promise<StatsPayload> => {
+  const stats: StatsPayload = {
+    total: 0,
+    allowed: 0,
+    denied: 0,
+    scannedAt: Date.now(),
+  };
+  try {
+    const stream = createReadStream(LOG_PATH, { encoding: 'utf8' });
+    const rl = createInterface({ input: stream, crlfDelay: Infinity });
+    for await (const line of rl) {
+      if (!line) continue;
+      stats.total += 1;
+      try {
+        const obj = JSON.parse(line) as { decision?: unknown };
+        if (obj.decision === 'allow') stats.allowed += 1;
+        else if (obj.decision === 'deny') stats.denied += 1;
+      } catch {
+        /* unparseable line still counts toward total */
+      }
+    }
+    stats.scannedAt = Date.now();
+  } catch {
+    /* file missing or unreadable: return zeros */
+  }
+  return stats;
 });
 
 app.on('ready', async () => {

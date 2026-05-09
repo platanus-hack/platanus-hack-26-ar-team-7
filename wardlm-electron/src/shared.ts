@@ -1,5 +1,6 @@
 export const IPC = {
   GetInitial: 'log:get-initial',
+  GetStats: 'log:get-stats',
   Retry: 'log:retry',
   Line: 'log:line',
   Rotated: 'log:rotated',
@@ -17,8 +18,16 @@ export type InitialPayload = {
   error: LogErrorPayload | null;
 };
 
+export type StatsPayload = {
+  total: number;
+  allowed: number;
+  denied: number;
+  scannedAt: number;
+};
+
 export type WardlmApi = {
   getInitial: () => Promise<InitialPayload>;
+  getStats: () => Promise<StatsPayload>;
   retry: () => Promise<InitialPayload>;
   onLine: (cb: (line: string) => void) => () => void;
   onRotated: (cb: () => void) => () => void;
