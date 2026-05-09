@@ -43,11 +43,13 @@ command -v sudo    >/dev/null || fail "sudo required"
 
 # ---------- Phase 2: build deps ----------
 log "installing build dependencies (apt)"
+# Skip nodejs/npm from apt if already present (e.g. NodeSource installs
+# bundle npm with nodejs and conflict with Debian's npm package).
+apt_pkgs=(build-essential libcurl4-openssl-dev git fakeroot dpkg-dev)
+command -v node >/dev/null 2>&1 || apt_pkgs+=(nodejs)
+command -v npm  >/dev/null 2>&1 || apt_pkgs+=(npm)
 sudo apt-get update -qq
-sudo apt-get install -y \
-    build-essential libcurl4-openssl-dev git \
-    nodejs npm \
-    fakeroot dpkg-dev
+sudo apt-get install -y "${apt_pkgs[@]}"
 
 # ---------- Phase 3: source code ----------
 # If invoked from a checkout (./install.sh), use $PWD. Otherwise clone.
