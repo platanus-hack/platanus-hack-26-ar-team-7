@@ -8,7 +8,8 @@
 #   - /opt/wardlm/                    (CLI binary, shims, electron app)
 #   - /etc/profile.d/wardlm.sh        (PATH wiring)
 #   - /var/log/wardlm/                (audit log; asks for confirmation)
-#   - ~/.wardlm/                      (settings + API key; asks for confirmation)
+#   - ~/.wardlm/                      (API key; asks for confirmation)
+#   - ~/.config/wardlm/               (settings written by wardlm-electron; asks for confirmation)
 
 set -euo pipefail
 
@@ -64,13 +65,23 @@ if [ -d /var/log/wardlm ]; then
     fi
 fi
 
-# ---------- 5. user config + secrets ----------
+# ---------- 5. user secrets ----------
 if [ -d "$HOME/.wardlm" ]; then
-    if confirm "Remove ~/.wardlm/ ? (settings + API key will be lost)"; then
+    if confirm "Remove ~/.wardlm/ ? (API key will be lost)"; then
         rm -rf "$HOME/.wardlm"
         log "removed $HOME/.wardlm"
     else
         warn "kept ~/.wardlm (remove manually with: rm -rf ~/.wardlm)"
+    fi
+fi
+
+# ---------- 6. user settings (written by wardlm-electron) ----------
+if [ -d "$HOME/.config/wardlm" ]; then
+    if confirm "Remove ~/.config/wardlm/ ? (security-check toggles will be lost)"; then
+        rm -rf "$HOME/.config/wardlm"
+        log "removed $HOME/.config/wardlm"
+    else
+        warn "kept ~/.config/wardlm (remove manually with: rm -rf ~/.config/wardlm)"
     fi
 fi
 

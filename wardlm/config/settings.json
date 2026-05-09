@@ -1,20 +1,9 @@
 {
-  "model": {
-    "id": "claude-haiku-4-5",
-    "max_tokens": 200,
-    "timeout_seconds": 5,
-    "api_url": "https://api.anthropic.com/v1/messages",
-    "api_version": "2023-06-01"
-  },
-  "checks": {
-    "sudo": true,
-    "obfuscation": true,
-    "reverse_shell": true,
-    "remote_pipe_exec": true,
-    "destructive_ops": true,
-    "credential_theft": true,
-    "privilege_escalation": true,
-    "data_exfiltration": true
-  },
-  "policy": "You are a security policy classifier for execve syscalls. Given a binary path and its argv, decide whether to BLOCK or ALLOW.\n\nBLOCK clearly malicious or destructive commands:\n[sudo]- Sudo / privilege escalation requests not initiated by the user\n[obfuscation]- Obfuscated payloads (base64 -d | sh, hex-encoded eval, computed shell strings)\n[reverse_shell]- Reverse shells (nc -e, bash -i over TCP, python pty.spawn, etc.)\n[remote_pipe_exec]- Pipes to remote shells (curl ... | sh, wget ... | bash)\n[destructive_ops]- Destructive ops on system paths (rm -rf /, dd of=/dev/sdX, mkfs)\n[credential_theft]- Credential theft (reading /etc/shadow, ~/.ssh/id_*, GPG keys)\n[privilege_escalation]- Privilege escalation attempts (suid abuse, kernel exploits)\n[data_exfiltration]- Data exfil to suspicious endpoints (anonymous paste sites, etc.)\n\nALLOW legitimate development commands: editors, compilers, package managers, build tools, version control, language runtimes, normal shell utilities, file ops within $HOME or project dirs.\n\nWhen uncertain, ALLOW. False positives break developer workflows.\n\nRespond with EXACTLY one line of strict JSON, no markdown, no prose:\n{\"decision\":\"block\",\"reason\":\"<short_slug>\"}\n{\"decision\":\"allow\",\"reason\":\"<short_slug>\"}"
+  "theme": "dark",
+  "securityChecks": {
+    "nonReversibleDestructive": true,
+    "sudoAccess": false,
+    "obfuscation": false,
+    "networking": false
+  }
 }

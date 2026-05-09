@@ -18,7 +18,32 @@ static char  g_api_version[64]  = "2023-06-01";
 
 static char *g_policy_raw       = NULL;  /* unescaped raw policy text */
 static char *g_policy_effective = NULL;  /* policy after filtering */
-static char *g_checks_block     = NULL;  /* malloc'd copy of inner of "checks":{...} */
+static char *g_checks_block     = NULL;  /* malloc'd copy of inner of "securityChecks":{...} */
+
+/* Compile-time default policy. Tags match wardlm-electron's
+ * securityChecks keys (shared.ts:12-16): nonReversibleDestructive,
+ * sudoAccess, obfuscation, networking. Lines without a [tag] prefix
+ * (e.g. credential theft) are always emitted regardless of toggles. */
+static const char *DEFAULT_POLICY =
+    "You are a security policy classifier for execve syscalls. Given a binary path and its argv, decide whether to BLOCK or ALLOW.\n"
+    "\n"
+    "BLOCK clearly malicious or destructive commands:\n"
+    "[sudoAccess]- Sudo / privilege escalation requests not initiated by the user\n"
+    "[obfuscation]- Obfuscated payloads (base64 -d | sh, hex-encoded eval, computed shell strings)\n"
+    "[networking]- Reverse shells (nc -e, bash -i over TCP, python pty.spawn, etc.)\n"
+    "[networking]- Pipes to remote shells (curl ... | sh, wget ... | bash)\n"
+    "[nonReversibleDestructive]- Destructive ops on system paths (rm -rf /, dd of=/dev/sdX, mkfs)\n"
+    "- Credential theft (reading /etc/shadow, ~/.ssh/id_*, GPG keys)\n"
+    "[sudoAccess]- Privilege escalation attempts (suid abuse, kernel exploits)\n"
+    "[networking]- Data exfil to suspicious endpoints (anonymous paste sites, etc.)\n"
+    "\n"
+    "ALLOW legitimate development commands: editors, compilers, package managers, build tools, version control, language runtimes, normal shell utilities, file ops within $HOME or project dirs.\n"
+    "\n"
+    "When uncertain, ALLOW. False positives break developer workflows.\n"
+    "\n"
+    "Respond with EXACTLY one line of strict JSON, no markdown, no prose:\n"
+    "{\"decision\":\"block\",\"reason\":\"<short_slug>\"}\n"
+    "{\"decision\":\"allow\",\"reason\":\"<short_slug>\"}";
 
 static char *slurp_file(const char *path, size_t *out_len) {
     FILE *f = fopen(path, "rb");
@@ -138,8 +163,11 @@ static char *parse_object_dup(const char *p) {
     return out;
 }
 
-/* Look up a boolean flag in the cached checks block. Returns 1 if
- * true, 0 if false, and `default_val` if the key is absent. */
+/* Look up a boolean flag in the cached securityChecks block. Returns 1
+ * if true, 0 if false, and `default_val` if the key is absent. Callers
+ * pass default_val=1 so that on a fresh install (no settings file
+ * written by wardlm-electron yet) every check is on — biased toward
+ * safety until the user expresses a preference. */
 static int check_enabled(const char *name, int default_val) {
     if (!g_checks_block) return default_val;
     const char *p = find_value(g_checks_block, name);
@@ -204,61 +232,79 @@ static int build_effective_policy(void) {
 int settings_load(const char *path) {
     if (!path) path = getenv("WARDLM_SETTINGS");
 
-    /* Default resolution: prefer per-user $HOME/.wardlm/settings.json,
-     * fall back to system-wide /etc/wardlm/settings.json. */
+    /* Default resolution: $XDG_CONFIG_HOME/wardlm/settings.json (the
+     * file managed by wardlm-electron), then /etc/wardlm/settings.json.
+     * A missing file is non-fatal — we boot with embedded defaults. */
     static char user_path[PATH_MAX];
     if (!path || !*path) {
-        const char *home = getenv("HOME");
-        if (home && *home) {
+        const char *xdg = getenv("XDG_CONFIG_HOME");
+        if (xdg && xdg[0] == '/') {
             snprintf(user_path, sizeof(user_path),
-                     "%s/.wardlm/settings.json", home);
-            if (access(user_path, R_OK) == 0) path = user_path;
+                     "%s/wardlm/settings.json", xdg);
+        } else {
+            const char *home = getenv("HOME");
+            if (home && *home) {
+                snprintf(user_path, sizeof(user_path),
+                         "%s/.config/wardlm/settings.json", home);
+            } else {
+                user_path[0] = '\0';
+            }
         }
+        if (user_path[0] && access(user_path, R_OK) == 0) path = user_path;
         if (!path) path = SYSTEM_PATH;
     }
 
     char *buf = slurp_file(path, NULL);
-    if (!buf) return -1;
 
-    /* model.* */
-    const char *model = find_value(buf, "model");
-    if (model && *model == '{') {
-        char *model_obj = parse_object_dup(model);
-        if (model_obj) {
-            const char *v;
-            if ((v = find_value(model_obj, "id")) && *v == '"')
-                parse_string(v, g_model_id, sizeof(g_model_id));
-            if ((v = find_value(model_obj, "max_tokens")))
-                g_max_tokens = (int)strtol(v, NULL, 10);
-            if ((v = find_value(model_obj, "timeout_seconds")))
-                g_timeout_seconds = strtol(v, NULL, 10);
-            if ((v = find_value(model_obj, "api_url")) && *v == '"')
-                parse_string(v, g_api_url, sizeof(g_api_url));
-            if ((v = find_value(model_obj, "api_version")) && *v == '"')
-                parse_string(v, g_api_version, sizeof(g_api_version));
-            free(model_obj);
-        }
-    }
-
-    /* checks: cache the raw inner block for later lookups */
+    /* Reset overrides each load so a previously-loaded checks block or
+     * file-based policy doesn't leak into a later call with a different
+     * (or absent) file. Static model.* keep their compile-time defaults
+     * unless the file overrides them. */
     free(g_checks_block);
     g_checks_block = NULL;
-    const char *checks = find_value(buf, "checks");
-    if (checks && *checks == '{') {
-        g_checks_block = parse_object_dup(checks);
-    }
-
-    /* policy */
     free(g_policy_raw);
     g_policy_raw = NULL;
-    const char *policy = find_value(buf, "policy");
-    if (policy && *policy == '"') {
-        g_policy_raw = parse_string_dup(policy);
+
+    if (buf) {
+        /* model.* (Electron never writes this; kept for testability) */
+        const char *model = find_value(buf, "model");
+        if (model && *model == '{') {
+            char *model_obj = parse_object_dup(model);
+            if (model_obj) {
+                const char *v;
+                if ((v = find_value(model_obj, "id")) && *v == '"')
+                    parse_string(v, g_model_id, sizeof(g_model_id));
+                if ((v = find_value(model_obj, "max_tokens")))
+                    g_max_tokens = (int)strtol(v, NULL, 10);
+                if ((v = find_value(model_obj, "timeout_seconds")))
+                    g_timeout_seconds = strtol(v, NULL, 10);
+                if ((v = find_value(model_obj, "api_url")) && *v == '"')
+                    parse_string(v, g_api_url, sizeof(g_api_url));
+                if ((v = find_value(model_obj, "api_version")) && *v == '"')
+                    parse_string(v, g_api_version, sizeof(g_api_version));
+                free(model_obj);
+            }
+        }
+
+        /* securityChecks: cache the raw inner block for later lookups */
+        const char *checks = find_value(buf, "securityChecks");
+        if (checks && *checks == '{') {
+            g_checks_block = parse_object_dup(checks);
+        }
+
+        /* policy override (Electron never writes this; staging hook only) */
+        const char *policy = find_value(buf, "policy");
+        if (policy && *policy == '"') {
+            g_policy_raw = parse_string_dup(policy);
+        }
+
+        free(buf);
     }
 
-    free(buf);
-
-    if (!g_policy_raw) return -1;
+    if (!g_policy_raw) {
+        g_policy_raw = strdup(DEFAULT_POLICY);
+        if (!g_policy_raw) return -1;
+    }
     return build_effective_policy();
 }
 

@@ -6,7 +6,8 @@
 # Builds and installs:
 #   - wardlm (CLI exec-guard)         -> /opt/wardlm/bin, /opt/wardlm/shim
 #   - wardlm-electron (audit viewer)  -> .deb installed via dpkg
-#   - per-user config + secrets       -> ~/.wardlm/{settings.json,env}
+#   - per-user secrets                -> ~/.wardlm/env
+#     (settings live at ~/.config/wardlm/settings.json, written by wardlm-electron)
 #
 # Flags:
 #   --skip-electron    Install only the CLI (skip the Electron viewer).
@@ -135,17 +136,9 @@ EOF
 sudo chmod 0644 /etc/profile.d/wardlm.sh
 
 # ---------- Phase 7: per-user setup ----------
-log "per-user setup in ~/.wardlm/"
+log "per-user setup in ~/.wardlm/ (API key only; settings are managed by wardlm-electron)"
 mkdir -p "$HOME/.wardlm"
 chmod 0700 "$HOME/.wardlm"
-
-if [ -f "$HOME/.wardlm/settings.json" ]; then
-    log "preserving existing ~/.wardlm/settings.json"
-else
-    cp "$REPO/wardlm/config/settings.json" "$HOME/.wardlm/settings.json"
-    chmod 0644 "$HOME/.wardlm/settings.json"
-    log "wrote ~/.wardlm/settings.json"
-fi
 
 # API key: env var wins, else prompt.
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
@@ -188,8 +181,8 @@ cat <<'EOF'
   Shims:         /opt/wardlm/shim/   (25 agents)
   Audit log:     /var/log/wardlm/wardlm.log
   PATH config:   /etc/profile.d/wardlm.sh
-  User config:   ~/.wardlm/settings.json
-  User secrets:  ~/.wardlm/env       (mode 0600)
+  User config:   ~/.config/wardlm/settings.json   (managed by wardlm-electron)
+  User secrets:  ~/.wardlm/env                    (mode 0600)
 
   Activate now in this shell:
     source /etc/profile.d/wardlm.sh
