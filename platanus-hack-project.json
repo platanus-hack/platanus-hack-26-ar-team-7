@@ -1,5 +1,5 @@
 {
-  "project-name": "<FILL THIS>",
-  "project-oneliner-spanish": "<FILL THIS>",
-  "project-description-spanish": "<FILL THIS>"
+  "project-name": "wardlm",
+  "project-oneliner-spanish": "Capa de seguridad a nivel sistema operativo para agentes",
+  "project-description-spanish": "La seguridad cyberinformatica consiste en crear defensas en distintas capas del stack. Hoy en dia los harnesses de agentes como claude-code y codex tienen clasificadores automaticos que determinan si hay que auto-aceptar o no un comando de bash o similar. Sin embargo, no hay ninguna defensa de este estilo al nivel del sistema operativo. Este proyecto consiste en una proteccion simil a un antivirus donde evalua todos los comandos ejecutados por agentes, determina si son maliciosos, y de ser asi los rechaza. Esta informacion es visible al usuario desde una app de Electron. Para implementar la logica a nivel sistema operativo, usamos el modulo del kernel `seccomp` para auditar las syscalls antes que las ejecute. Usamos LLMs para determinar si un comando tiene que ser rechazado o no."
 }
