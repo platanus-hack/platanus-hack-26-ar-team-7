@@ -8,8 +8,7 @@
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
-    "make": "electron-forge make",
-    "publish": "electron-forge publish",
+    "make": "electron-forge make --platform=linux --arch=x64,arm64 --targets=@electron-forge/maker-deb",
     "lint": "eslint --ext .ts,.tsx ."
   },
   "keywords": [],

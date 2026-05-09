@@ -64,5 +64,6 @@ Archive
 .codex
 .webpack
 wardlm-electron/out
+wardlm-electron/dist
 node_modules
 

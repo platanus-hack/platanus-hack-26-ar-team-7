@@ -44,6 +44,7 @@ done
 
 REPO_URL="https://github.com/platanus-hack/platanus-hack-26-ar-team-7.git"
 REPO_BRANCH="main"
+RELEASE_URL="https://github.com/platanus-hack/platanus-hack-26-ar-team-7/releases/latest/download"
 
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!!\033[0m  %s\n' "$*" >&2; }
@@ -58,7 +59,8 @@ log "preflight checks"
 [ "$(uname -s)" = "Linux" ] || fail "wardlm only supports Linux"
 arch="$(uname -m)"
 case "$arch" in
-    x86_64|aarch64) ;;
+    x86_64)  deb_arch="amd64" ;;
+    aarch64) deb_arch="arm64" ;;
     *) fail "unsupported arch: $arch (need x86_64 or aarch64)" ;;
 esac
 
@@ -71,22 +73,13 @@ fi
 
 command -v apt-get >/dev/null || fail "apt-get not found (Debian/Ubuntu only)"
 command -v dpkg    >/dev/null || fail "dpkg not found (Debian/Ubuntu only)"
+command -v curl    >/dev/null || fail "curl required to fetch the wardlm-electron .deb"
 command -v sudo    >/dev/null || fail "sudo required"
 
 # ---------- Phase 2: build deps ----------
 log "installing build dependencies (apt)"
-# Electron deps (fakeroot/dpkg-dev/nodejs/npm) only needed when building the
-# .deb; skip them with --skip-electron. Also skip nodejs/npm if already in
-# PATH (NodeSource installs bundle npm with nodejs and conflict with
-# Debian's npm package).
-apt_pkgs=(build-essential libcurl4-openssl-dev git)
-if [ "$skip_electron" -eq 0 ]; then
-    apt_pkgs+=(fakeroot dpkg-dev)
-    command -v node >/dev/null 2>&1 || apt_pkgs+=(nodejs)
-    command -v npm  >/dev/null 2>&1 || apt_pkgs+=(npm)
-fi
 sudo apt-get update -qq
-sudo apt-get install -y "${apt_pkgs[@]}"
+sudo apt-get install -y build-essential libcurl4-openssl-dev git
 
 # ---------- Phase 3: source code ----------
 # If invoked from a checkout (./install.sh), use $PWD. Otherwise clone.
@@ -110,19 +103,22 @@ sudo install -d -m 1777 /var/log/wardlm
 sudo install -m 0755 "$REPO/wardlm/wardlm" /opt/wardlm/bin/wardlm
 sudo install -m 0755 "$REPO/wardlm"/shim/* /opt/wardlm/shim/
 
-# ---------- Phase 5: build + install wardlm-electron .deb ----------
+# ---------- Phase 5: download + install wardlm-electron .deb (GitHub release) ----------
 if [ "$skip_electron" -eq 0 ]; then
-    log "building wardlm-electron .deb"
-    (
-        cd "$REPO/wardlm-electron"
-        npm ci --no-audit --no-fund
-        npx --yes electron-forge make --targets=@electron-forge/maker-deb
-    )
+    version="$(sed -nE 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' \
+        "$REPO/wardlm-electron/package.json" | head -1)"
+    [ -n "$version" ] || fail "could not read version from wardlm-electron/package.json"
 
-    deb="$(ls -t "$REPO/wardlm-electron/out/make/deb/"*"/wardlm"_*.deb 2>/dev/null | head -1 || true)"
-    [ -n "$deb" ] || fail "no .deb produced under wardlm-electron/out/make/deb/"
+    deb_name="wardlm_${version}_${deb_arch}.deb"
+    deb_url="$RELEASE_URL/$deb_name"
+    : "${TMPDIR_INSTALL:=$(mktemp -d)}"
+    deb="$TMPDIR_INSTALL/$deb_name"
 
-    log "installing $(basename "$deb") (sudo)"
+    log "downloading $deb_name from latest GitHub release"
+    curl -fsSL --retry 3 -o "$deb" "$deb_url" \
+        || fail "failed to download $deb_url"
+
+    log "installing $deb_name (sudo)"
     sudo dpkg -i "$deb" || sudo apt-get install -f -y
 else
     log "skipping wardlm-electron (--skip-electron)"
