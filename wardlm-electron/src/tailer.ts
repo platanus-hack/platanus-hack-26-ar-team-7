@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
-import chokidar, { FSWatcher } from 'chokidar';
+import { watch as chokidarWatch, FSWatcher } from 'chokidar';
 import { LOG_PATH } from './paths';
 
 const CHUNK = 64 * 1024;
@@ -115,7 +115,7 @@ export class LogTailer extends EventEmitter {
 
     const dir = path.dirname(this.filePath);
     const base = path.basename(this.filePath);
-    this.watcher = chokidar.watch(this.filePath, {
+    this.watcher = chokidarWatch(this.filePath, {
       ignoreInitial: true,
       awaitWriteFinish: false,
       persistent: true,
