@@ -2,7 +2,7 @@ import { app, BrowserWindow, Menu, ipcMain } from 'electron';
 import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
 import { LogTailer, DEFAULT_LOG_PATH, TailerError } from './tailer';
-import { IPC, InitialPayload, StatsPayload } from './shared';
+import { IPC, InitialPayload, StatsPayload, AgentKey } from './shared';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -31,6 +31,8 @@ const RING_LIMIT = 2000;
 let mainWindow: BrowserWindow | null = null;
 let tailer: LogTailer | null = null;
 let initialBuffer: string[] = [];
+let initialTotalLines = 0;
+let appendedSinceInit = 0;
 let lastError: TailerError | null = null;
 let startInflight: Promise<InitialPayload> | null = null;
 
@@ -51,9 +53,12 @@ function attachTailerEvents(t: LogTailer): void {
   t.on('line', (line: string) => {
     lastError = null;
     pushLine(line);
+    appendedSinceInit++;
     send(IPC.Line, line);
   });
   t.on('rotated', () => {
+    initialTotalLines = 0;
+    appendedSinceInit = 0;
     send(IPC.Rotated);
   });
   t.on('error', (err: TailerError) => {
@@ -69,10 +74,12 @@ async function startTailer(): Promise<InitialPayload> {
       tailer = new LogTailer(LOG_PATH);
       attachTailerEvents(tailer);
     }
-    const { initial, path, error } = await tailer.start();
+    const { initial, totalLines, path, error } = await tailer.start();
     initialBuffer = initial;
+    initialTotalLines = totalLines;
+    appendedSinceInit = 0;
     lastError = error;
-    return { path, lines: initial, error };
+    return { path, lines: initial, totalLines, error };
   })();
   startInflight = promise;
   void promise.finally(() => {
@@ -114,18 +121,34 @@ ipcMain.handle(IPC.GetInitial, async (): Promise<InitialPayload> => {
   if (!tailer) {
     return startTailer();
   }
-  return { path: LOG_PATH, lines: initialBuffer, error: lastError };
+  return {
+    path: LOG_PATH,
+    lines: initialBuffer,
+    totalLines: initialTotalLines + appendedSinceInit,
+    error: lastError,
+  };
 });
 
 ipcMain.handle(IPC.Retry, async (): Promise<InitialPayload> => {
   return startTailer();
 });
 
+function classifyAgent(value: unknown): AgentKey {
+  if (value === 'claude-code') return 'claudeCode';
+  if (value === 'codex') return 'codex';
+  return 'other';
+}
+
 ipcMain.handle(IPC.GetStats, async (): Promise<StatsPayload> => {
   const stats: StatsPayload = {
     total: 0,
     allowed: 0,
     denied: 0,
+    agents: {
+      claudeCode: { total: 0, allowed: 0, denied: 0 },
+      codex: { total: 0, allowed: 0, denied: 0 },
+      other: { total: 0, allowed: 0, denied: 0 },
+    },
     scannedAt: Date.now(),
   };
   try {
@@ -134,12 +157,24 @@ ipcMain.handle(IPC.GetStats, async (): Promise<StatsPayload> => {
     for await (const line of rl) {
       if (!line) continue;
       stats.total += 1;
+      let agent: AgentKey = 'other';
+      let decision: 'allow' | 'deny' | null = null;
       try {
-        const obj = JSON.parse(line) as { decision?: unknown };
-        if (obj.decision === 'allow') stats.allowed += 1;
-        else if (obj.decision === 'deny') stats.denied += 1;
+        const obj = JSON.parse(line) as { decision?: unknown; agent?: unknown };
+        agent = classifyAgent(obj.agent);
+        if (obj.decision === 'allow') decision = 'allow';
+        else if (obj.decision === 'deny') decision = 'deny';
       } catch {
-        /* unparseable line still counts toward total */
+        /* unparseable line still counts toward total / agents.other.total */
+      }
+      const bucket = stats.agents[agent];
+      bucket.total += 1;
+      if (decision === 'allow') {
+        stats.allowed += 1;
+        bucket.allowed += 1;
+      } else if (decision === 'deny') {
+        stats.denied += 1;
+        bucket.denied += 1;
       }
     }
     stats.scannedAt = Date.now();

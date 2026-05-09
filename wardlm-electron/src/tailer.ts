@@ -12,6 +12,25 @@ export const DEFAULT_LOG_PATH = '/var/log/wardlm/wardlm.log';
 
 export type TailerError = { code: string; message: string };
 
+async function countFileLines(filePath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    let count = 0;
+    let trailingByte = 0x0a;
+    const stream = fs.createReadStream(filePath, { highWaterMark: CHUNK });
+    stream.on('data', (chunk: Buffer) => {
+      for (let i = 0; i < chunk.length; i++) {
+        if (chunk[i] === 0x0a) count++;
+      }
+      if (chunk.length > 0) trailingByte = chunk[chunk.length - 1];
+    });
+    stream.on('end', () => {
+      if (trailingByte !== 0x0a) count++;
+      resolve(count);
+    });
+    stream.on('error', reject);
+  });
+}
+
 async function readLastLines(
   filePath: string,
   maxLines: number,
@@ -60,7 +79,7 @@ export class LogTailer extends EventEmitter {
     super();
   }
 
-  async start(): Promise<{ initial: string[]; path: string; error: TailerError | null }> {
+  async start(): Promise<{ initial: string[]; totalLines: number; path: string; error: TailerError | null }> {
     await this.stop();
 
     try {
@@ -71,21 +90,23 @@ export class LogTailer extends EventEmitter {
         code: e.code ?? 'EUNKNOWN',
         message: e.message,
       };
-      return { initial: [], path: this.filePath, error: payload };
+      return { initial: [], totalLines: 0, path: this.filePath, error: payload };
     }
 
     let initial: string[] = [];
     let size = 0;
     let remainder = '';
+    let totalLines = 0;
     try {
       const tail = await readLastLines(this.filePath, INITIAL_LINES);
       initial = tail.lines;
       size = tail.size;
       remainder = tail.remainder;
+      totalLines = await countFileLines(this.filePath);
     } catch (err: unknown) {
       const e = err as NodeJS.ErrnoException;
       const payload: TailerError = { code: e.code ?? 'EUNKNOWN', message: e.message };
-      return { initial: [], path: this.filePath, error: payload };
+      return { initial: [], totalLines: 0, path: this.filePath, error: payload };
     }
 
     this.offset = size;
@@ -111,7 +132,7 @@ export class LogTailer extends EventEmitter {
 
     this.handleChange();
 
-    return { initial, path: this.filePath, error: null };
+    return { initial, totalLines, path: this.filePath, error: null };
   }
 
   async stop(): Promise<void> {

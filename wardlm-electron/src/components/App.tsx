@@ -4,7 +4,7 @@ import React, {
   useReducer,
   useDeferredValue,
 } from 'react';
-import { InitialPayload, LogErrorPayload, StatsPayload } from '../shared';
+import { AgentKey, InitialPayload, LogErrorPayload, StatsPayload } from '../shared';
 import { TitleBar } from './TitleBar';
 import { Toolbar } from './Toolbar';
 import { LogTable } from './LogTable';
@@ -102,6 +102,12 @@ function parseEntry(text: string, id: number): LogEntry | null {
   };
 }
 
+function toAgentKey(agent: string): AgentKey {
+  if (agent === 'claude-code') return 'claudeCode';
+  if (agent === 'codex') return 'codex';
+  return 'other';
+}
+
 const initialState: State = {
   path: '/var/log/wardlm/wardlm.log',
   entries: [],
@@ -117,7 +123,16 @@ const initialState: State = {
   status: 'connecting',
   nextId: 0,
   view: 'home',
-  stats: { total: 0, allowed: 0, denied: 0 },
+  stats: {
+    total: 0,
+    allowed: 0,
+    denied: 0,
+    agents: {
+      claudeCode: { total: 0, allowed: 0, denied: 0 },
+      codex: { total: 0, allowed: 0, denied: 0 },
+      other: { total: 0, allowed: 0, denied: 0 },
+    },
+  },
 };
 
 function appendLine(state: State, text: string): State {
@@ -137,10 +152,20 @@ function appendLine(state: State, text: string): State {
   if (entries.length >= MAX_ENTRIES) {
     entries = entries.slice(entries.length - MAX_ENTRIES + 1);
   }
+  const agentKey = toAgentKey(entry.agent);
+  const prevBucket = state.stats.agents[agentKey];
   const stats: DashboardStats = {
     total: state.stats.total + 1,
     allowed: state.stats.allowed + (entry.decision === 'allow' ? 1 : 0),
     denied: state.stats.denied + (entry.decision === 'deny' ? 1 : 0),
+    agents: {
+      ...state.stats.agents,
+      [agentKey]: {
+        total: prevBucket.total + 1,
+        allowed: prevBucket.allowed + (entry.decision === 'allow' ? 1 : 0),
+        denied: prevBucket.denied + (entry.decision === 'deny' ? 1 : 0),
+      },
+    },
   };
   return {
     ...state,
@@ -172,7 +197,7 @@ function reducer(state: State, action: Action): State {
         ...state,
         path: action.payload.path,
         entries,
-        totalSeen: action.payload.lines.length,
+        totalSeen: action.payload.totalLines,
         nextId: id,
         status: err ? 'error' : 'live',
         error: err,
@@ -228,6 +253,7 @@ function reducer(state: State, action: Action): State {
           total: action.stats.total,
           allowed: action.stats.allowed,
           denied: action.stats.denied,
+          agents: action.stats.agents,
         },
       };
     default:
