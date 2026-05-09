@@ -5,7 +5,32 @@ export const IPC = {
   Line: 'log:line',
   Rotated: 'log:rotated',
   Error: 'log:error',
+  SettingsGet: 'settings:get',
+  SettingsSet: 'settings:set',
 } as const;
+
+export type SecurityCheckKey =
+  | 'nonReversibleDestructive'
+  | 'sudoAccess'
+  | 'obfuscation'
+  | 'networking';
+
+export type SecurityChecks = Record<SecurityCheckKey, boolean>;
+
+export type Settings = {
+  theme: 'light' | 'dark';
+  securityChecks: SecurityChecks;
+};
+
+export const DEFAULT_SETTINGS: Settings = {
+  theme: 'dark',
+  securityChecks: {
+    nonReversibleDestructive: true,
+    sudoAccess: false,
+    obfuscation: false,
+    networking: false,
+  },
+};
 
 export type LogErrorPayload = {
   code: string;
@@ -37,6 +62,8 @@ export type WardlmApi = {
   onLine: (cb: (line: string) => void) => () => void;
   onRotated: (cb: () => void) => () => void;
   onError: (cb: (err: LogErrorPayload) => void) => () => void;
+  getSettings: () => Promise<Settings>;
+  setSettings: (patch: Partial<Settings>) => Promise<Settings>;
 };
 
 declare global {

@@ -1,11 +1,46 @@
 import React from 'react';
+import { SecurityCheckKey, SecurityChecks } from '../shared';
 
 type Props = {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  securityChecks: SecurityChecks;
+  onToggleSecurityCheck: (key: SecurityCheckKey) => void;
 };
 
-export function SettingsView({ theme, onToggleTheme }: Props): JSX.Element {
+const SECURITY_CHECK_ROWS: ReadonlyArray<{
+  key: SecurityCheckKey;
+  label: string;
+  hint: string;
+}> = [
+  {
+    key: 'nonReversibleDestructive',
+    label: 'Non-reversible destructive actions',
+    hint: 'Block commands that cannot be undone (e.g. rm -rf, DROP TABLE).',
+  },
+  {
+    key: 'sudoAccess',
+    label: 'Sudo access',
+    hint: 'Block commands that escalate privileges via sudo.',
+  },
+  {
+    key: 'obfuscation',
+    label: 'Obfuscation',
+    hint: 'Block commands that hide their intent (encoded payloads, base64 pipes).',
+  },
+  {
+    key: 'networking',
+    label: 'Networking',
+    hint: 'Block commands that initiate outbound network connections.',
+  },
+];
+
+export function SettingsView({
+  theme,
+  onToggleTheme,
+  securityChecks,
+  onToggleSecurityCheck,
+}: Props): JSX.Element {
   return (
     <div className="dashboard">
       <header className="dashboard__header">
@@ -45,6 +80,30 @@ export function SettingsView({ theme, onToggleTheme }: Props): JSX.Element {
             </div>
           </div>
         </div>
+
+        <div className="settings__group-title">Security checks</div>
+        {SECURITY_CHECK_ROWS.map(({ key, label, hint }) => {
+          const checked = securityChecks[key];
+          return (
+            <div className="settings__row" key={key}>
+              <div className="settings__text">
+                <div className="settings__label">{label}</div>
+                <div className="settings__hint">{hint}</div>
+              </div>
+              <div className="settings__control">
+                <label className="toggle" aria-label={label}>
+                  <input
+                    type="checkbox"
+                    className="toggle__input"
+                    checked={checked}
+                    onChange={() => onToggleSecurityCheck(key)}
+                  />
+                  <span className="toggle__slider" />
+                </label>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -2,7 +2,14 @@ import { app, BrowserWindow, Menu, ipcMain } from 'electron';
 import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
 import { LogTailer, DEFAULT_LOG_PATH, TailerError } from './tailer';
-import { IPC, InitialPayload, StatsPayload, AgentKey } from './shared';
+import { IPC, InitialPayload, Settings, StatsPayload, AgentKey } from './shared';
+import * as settingsStore from './settingsStore';
+import { CACHE_DIR, DATA_DIR, STATE_DIR } from './paths';
+
+app.setPath('userData', DATA_DIR);
+app.setPath('sessionData', DATA_DIR);
+app.setPath('cache', CACHE_DIR);
+app.setPath('logs', STATE_DIR);
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -133,6 +140,13 @@ ipcMain.handle(IPC.Retry, async (): Promise<InitialPayload> => {
   return startTailer();
 });
 
+ipcMain.handle(IPC.SettingsGet, (): Settings => settingsStore.get());
+
+ipcMain.handle(
+  IPC.SettingsSet,
+  (_e, patch: Partial<Settings>): Promise<Settings> => settingsStore.set(patch),
+);
+
 function classifyAgent(value: unknown): AgentKey {
   if (value === 'claude-code') return 'claudeCode';
   if (value === 'codex') return 'codex';
@@ -185,6 +199,7 @@ ipcMain.handle(IPC.GetStats, async (): Promise<StatsPayload> => {
 });
 
 app.on('ready', async () => {
+  await settingsStore.init();
   try {
     await startTailer();
   } catch {

@@ -3,6 +3,7 @@ import {
   IPC,
   LogErrorPayload,
   InitialPayload,
+  Settings,
   StatsPayload,
   WardlmApi,
 } from './shared';
@@ -23,6 +24,9 @@ const api: WardlmApi = {
   onLine: (cb) => subscribe<string>(IPC.Line, cb),
   onRotated: (cb) => subscribe<void>(IPC.Rotated, () => cb()),
   onError: (cb) => subscribe<LogErrorPayload>(IPC.Error, cb),
+  getSettings: (): Promise<Settings> => ipcRenderer.invoke(IPC.SettingsGet),
+  setSettings: (patch: Partial<Settings>): Promise<Settings> =>
+    ipcRenderer.invoke(IPC.SettingsSet, patch),
 };
 
 contextBridge.exposeInMainWorld('wardlm', api);
