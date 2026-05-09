@@ -1,5 +1,6 @@
 import React from 'react';
 import { FileText, Home, Settings } from 'lucide-react';
+import iconUrl from '../../assets/icon.png';
 
 export type View = 'home' | 'logs' | 'settings';
 
@@ -39,7 +40,10 @@ export function Sidebar({ view, onSelect }: Props): JSX.Element {
 
   return (
     <nav className="sidebar" aria-label="Primary">
-      <div className="sidebar__brand">wardlm</div>
+      <div className="sidebar__brand">
+        <img src={iconUrl} alt="" className="sidebar__brand-icon" />
+        <span>wardlm</span>
+      </div>
       <ul className="sidebar__list">{TOP_ITEMS.map(renderItem)}</ul>
       <ul className="sidebar__list sidebar__list--bottom">
         {BOTTOM_ITEMS.map(renderItem)}

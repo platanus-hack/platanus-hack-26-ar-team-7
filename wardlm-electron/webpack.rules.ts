@@ -1,6 +1,13 @@
 import type { ModuleOptions } from 'webpack';
 
 export const rules: Required<ModuleOptions>['rules'] = [
+  {
+    test: /\.(png|jpe?g|gif|svg|ico)$/i,
+    type: 'asset/resource',
+    generator: {
+      filename: 'assets/[name][ext]',
+    },
+  },
   // Add support for native node modules
   {
     // We're specifying native_modules in the test because the asset relocator loader generates a
