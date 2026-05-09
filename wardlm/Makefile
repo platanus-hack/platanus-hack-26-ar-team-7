@@ -1,10 +1,12 @@
-CC      ?= gcc
-CFLAGS  ?= -O2 -Wall -Wextra
-LDLIBS  ?= -lcurl
-TARGET   = exec-guard
+CC       ?= gcc
+CFLAGS   ?= -O2 -Wall -Wextra
+LDLIBS   ?= -lcurl
+TARGET    = wardlm
 
-PREFIX  ?= /opt/exec-guard
-BINDIR   = $(PREFIX)/bin
+PREFIX   ?= /opt/wardlm
+BINDIR    = $(PREFIX)/bin
+SHIMDIR   = $(PREFIX)/shim
+LOGDIR   ?= /var/log/wardlm
 
 SRC := $(wildcard src/*.c)
 OBJ := $(SRC:.c=.o)
@@ -18,8 +20,10 @@ $(TARGET): $(OBJ)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 install: $(TARGET)
-	install -d $(DESTDIR)$(BINDIR)
+	install -d $(DESTDIR)$(BINDIR) $(DESTDIR)$(SHIMDIR)
 	install -m 0755 $(TARGET) $(DESTDIR)$(BINDIR)/$(TARGET)
+	install -m 0755 shim/* $(DESTDIR)$(SHIMDIR)/
+	install -d -m 1777 $(DESTDIR)$(LOGDIR)
 
 clean:
 	rm -f $(TARGET) src/*.o

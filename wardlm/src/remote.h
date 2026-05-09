@@ -1,5 +1,5 @@
-#ifndef EXEC_GUARD_REMOTE_H
-#define EXEC_GUARD_REMOTE_H
+#ifndef WARDLM_REMOTE_H
+#define WARDLM_REMOTE_H
 
 #include <stddef.h>
 #include <stdint.h>

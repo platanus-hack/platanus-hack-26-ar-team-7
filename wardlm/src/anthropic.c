@@ -1,36 +1,13 @@
 #define _GNU_SOURCE
 #include "anthropic.h"
 #include "json_util.h"
+#include "settings.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <curl/curl.h>
-
-#define ANTHROPIC_URL     "https://api.anthropic.com/v1/messages"
-#define ANTHROPIC_VERSION "2023-06-01"
-#define MODEL_ID          "claude-haiku-4-5"
-#define MAX_TOKENS        200
-#define HTTP_TIMEOUT_SECS 5L
-
-static const char SYSTEM_PROMPT[] =
-    "You are a security policy classifier for execve syscalls. "
-    "Given a binary path and its argv, decide whether to BLOCK or ALLOW.\n\n"
-    "BLOCK clearly malicious or destructive commands:\n"
-    "- Reverse shells (nc -e, bash -i over TCP, python pty.spawn, etc.)\n"
-    "- Pipes to remote shells (curl ... | sh, wget ... | bash)\n"
-    "- Destructive ops on system paths (rm -rf /, dd of=/dev/sdX, mkfs)\n"
-    "- Credential theft (reading /etc/shadow, ~/.ssh/id_*, GPG keys)\n"
-    "- Privilege escalation attempts (suid abuse, kernel exploits)\n"
-    "- Data exfil to suspicious endpoints (anonymous paste sites, etc.)\n\n"
-    "ALLOW legitimate development commands: editors, compilers, package "
-    "managers, build tools, version control, language runtimes, normal "
-    "shell utilities, file ops within $HOME or project dirs.\n\n"
-    "When uncertain, ALLOW. False positives break developer workflows.\n\n"
-    "Respond with EXACTLY one line of strict JSON, no markdown, no prose:\n"
-    "{\"decision\":\"block\",\"reason\":\"<short_slug>\"}\n"
-    "{\"decision\":\"allow\",\"reason\":\"<short_slug>\"}";
 
 struct response_buf {
     char *data;
@@ -77,9 +54,12 @@ static char *build_request_body(const char *path, char **argv, int argc) {
     FILE *f = open_memstream(&body, &body_len);
     if (!f) { free(user_content); return NULL; }
 
+    const char *prompt = settings_effective_policy();
+    if (!prompt) prompt = "";
+
     fprintf(f, "{\"model\":\"%s\",\"max_tokens\":%d,\"system\":\"",
-            MODEL_ID, MAX_TOKENS);
-    json_escape(f, SYSTEM_PROMPT);
+            settings_model_id(), settings_max_tokens());
+    json_escape(f, prompt);
     fputs("\",\"messages\":[{\"role\":\"user\",\"content\":\"", f);
     json_escape(f, user_content);
     fputs("\"}]}", f);
@@ -175,17 +155,20 @@ int anthropic_classify(const char *path, char **argv, int argc,
 
     char auth_header[256];
     snprintf(auth_header, sizeof(auth_header), "x-api-key: %s", api_key);
+    char version_header[128];
+    snprintf(version_header, sizeof(version_header),
+             "anthropic-version: %s", settings_api_version());
     headers = curl_slist_append(headers, auth_header);
-    headers = curl_slist_append(headers, "anthropic-version: " ANTHROPIC_VERSION);
+    headers = curl_slist_append(headers, version_header);
     headers = curl_slist_append(headers, "content-type: application/json");
 
-    curl_easy_setopt(curl, CURLOPT_URL, ANTHROPIC_URL);
+    curl_easy_setopt(curl, CURLOPT_URL, settings_api_url());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECS);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, settings_timeout_seconds());
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
     CURLcode code = curl_easy_perform(curl);
@@ -204,7 +187,7 @@ int anthropic_classify(const char *path, char **argv, int argc,
     }
     if (http_code != 200) {
         snprintf(reason_out, reason_out_len, "http_%ld", http_code);
-        fprintf(stderr, "[exec-guard] anthropic http %ld: %.200s\n",
+        fprintf(stderr, "[wardlm] anthropic http %ld: %.200s\n",
                 http_code, resp.data ? resp.data : "");
         free(resp.data);
         return -1;

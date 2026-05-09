@@ -1,5 +1,5 @@
-#ifndef EXEC_GUARD_FD_PASSING_H
-#define EXEC_GUARD_FD_PASSING_H
+#ifndef WARDLM_FD_PASSING_H
+#define WARDLM_FD_PASSING_H
 
 /* Send/receive a single file descriptor over a connected unix-domain
  * socket using SCM_RIGHTS ancillary data. Both ends transfer one byte

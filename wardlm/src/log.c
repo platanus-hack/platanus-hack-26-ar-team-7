@@ -7,10 +7,16 @@
 #include <time.h>
 #include <unistd.h>
 
-static const char *g_log_path = NULL;
+/* Default log destination. Overridden by --log on the command line. */
+static const char *g_log_path = "/var/log/wardlm/wardlm.log";
+static const char *g_agent = "";
 
 void log_set_path(const char *path) {
-    g_log_path = path;
+    if (path) g_log_path = path;
+}
+
+void log_set_agent(const char *agent) {
+    g_agent = agent ? agent : "";
 }
 
 void log_jsonl(const char *decision, const char *reason,
@@ -21,8 +27,9 @@ void log_jsonl(const char *decision, const char *reason,
     if (fd < 0) return;
     FILE *f = fdopen(fd, "a");
     if (!f) { close(fd); return; }
-    fprintf(f, "{\"ts\":%ld,\"decision\":\"%s\",\"reason\":\"",
-            (long)time(NULL), decision);
+    fprintf(f, "{\"ts\":%ld,\"agent\":\"", (long)time(NULL));
+    json_escape(f, g_agent);
+    fprintf(f, "\",\"decision\":\"%s\",\"reason\":\"", decision);
     json_escape(f, reason ? reason : "");
     fprintf(f, "\",\"pid\":%d,\"path\":\"", pid);
     json_escape(f, path);

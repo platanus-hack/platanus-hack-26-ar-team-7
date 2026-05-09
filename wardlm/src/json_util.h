@@ -1,5 +1,5 @@
-#ifndef EXEC_GUARD_JSON_UTIL_H
-#define EXEC_GUARD_JSON_UTIL_H
+#ifndef WARDLM_JSON_UTIL_H
+#define WARDLM_JSON_UTIL_H
 
 #include <stdio.h>
 
