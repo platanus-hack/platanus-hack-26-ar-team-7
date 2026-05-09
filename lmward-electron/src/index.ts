@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain } from 'electron';
 import { LogTailer, DEFAULT_LOG_PATH, TailerError } from './tailer';
 import { IPC, InitialPayload } from './shared';
 
@@ -8,6 +8,12 @@ declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 if (require('electron-squirrel-startup')) {
   app.quit();
 }
+
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('password-store', 'basic');
+}
+
+Menu.setApplicationMenu(null);
 
 const LOG_PATH = process.env.LMWRAP_LOG_PATH || DEFAULT_LOG_PATH;
 const RING_LIMIT = 2000;
@@ -70,7 +76,6 @@ const createWindow = (): void => {
     width: 1100,
     height: 720,
     backgroundColor: '#0b0d10',
-    titleBarStyle: 'hidden',
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
       contextIsolation: true,
