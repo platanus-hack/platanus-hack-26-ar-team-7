@@ -7,8 +7,39 @@
 #   - wardlm (CLI exec-guard)         -> /opt/wardlm/bin, /opt/wardlm/shim
 #   - wardlm-electron (audit viewer)  -> .deb installed via dpkg
 #   - per-user config + secrets       -> ~/.wardlm/{settings.json,env}
+#
+# Flags:
+#   --skip-electron    Install only the CLI (skip the Electron viewer).
+#                      Useful on headless / emulated VMs where the
+#                      electron-forge build is slow and the GUI isn't needed.
+#   -h, --help         Show usage.
+#
+# Pass flags through curl|bash with `bash -s --`:
+#   curl -fsSL .../install.sh | bash -s -- --skip-electron
 
 set -euo pipefail
+
+# ---------- Flag parsing ----------
+skip_electron=0
+
+usage() {
+    cat <<EOF
+usage: install.sh [--skip-electron]
+
+Options:
+  --skip-electron    Install only the wardlm CLI (skip the Electron viewer).
+                     Avoids the npm + electron-forge build (slow on emulated VMs).
+  -h, --help         Show this help.
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --skip-electron) skip_electron=1; shift ;;
+        -h|--help)       usage; exit 0 ;;
+        *)               printf 'unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+    esac
+done
 
 REPO_URL="https://github.com/platanus-hack/platanus-hack-26-ar-team-7.git"
 REPO_BRANCH="main"
@@ -43,11 +74,16 @@ command -v sudo    >/dev/null || fail "sudo required"
 
 # ---------- Phase 2: build deps ----------
 log "installing build dependencies (apt)"
-# Skip nodejs/npm from apt if already present (e.g. NodeSource installs
-# bundle npm with nodejs and conflict with Debian's npm package).
-apt_pkgs=(build-essential libcurl4-openssl-dev git fakeroot dpkg-dev)
-command -v node >/dev/null 2>&1 || apt_pkgs+=(nodejs)
-command -v npm  >/dev/null 2>&1 || apt_pkgs+=(npm)
+# Electron deps (fakeroot/dpkg-dev/nodejs/npm) only needed when building the
+# .deb; skip them with --skip-electron. Also skip nodejs/npm if already in
+# PATH (NodeSource installs bundle npm with nodejs and conflict with
+# Debian's npm package).
+apt_pkgs=(build-essential libcurl4-openssl-dev git)
+if [ "$skip_electron" -eq 0 ]; then
+    apt_pkgs+=(fakeroot dpkg-dev)
+    command -v node >/dev/null 2>&1 || apt_pkgs+=(nodejs)
+    command -v npm  >/dev/null 2>&1 || apt_pkgs+=(npm)
+fi
 sudo apt-get update -qq
 sudo apt-get install -y "${apt_pkgs[@]}"
 
@@ -74,18 +110,22 @@ sudo install -m 0755 "$REPO/wardlm/wardlm" /opt/wardlm/bin/wardlm
 sudo install -m 0755 "$REPO/wardlm"/shim/* /opt/wardlm/shim/
 
 # ---------- Phase 5: build + install wardlm-electron .deb ----------
-log "building wardlm-electron .deb"
-(
-    cd "$REPO/wardlm-electron"
-    npm ci --no-audit --no-fund
-    npx --yes electron-forge make --targets=@electron-forge/maker-deb
-)
+if [ "$skip_electron" -eq 0 ]; then
+    log "building wardlm-electron .deb"
+    (
+        cd "$REPO/wardlm-electron"
+        npm ci --no-audit --no-fund
+        npx --yes electron-forge make --targets=@electron-forge/maker-deb
+    )
 
-deb="$(ls -t "$REPO/wardlm-electron/out/make/deb/"*"/wardlm"_*.deb 2>/dev/null | head -1 || true)"
-[ -n "$deb" ] || fail "no .deb produced under wardlm-electron/out/make/deb/"
+    deb="$(ls -t "$REPO/wardlm-electron/out/make/deb/"*"/wardlm"_*.deb 2>/dev/null | head -1 || true)"
+    [ -n "$deb" ] || fail "no .deb produced under wardlm-electron/out/make/deb/"
 
-log "installing $(basename "$deb") (sudo)"
-sudo dpkg -i "$deb" || sudo apt-get install -f -y
+    log "installing $(basename "$deb") (sudo)"
+    sudo dpkg -i "$deb" || sudo apt-get install -f -y
+else
+    log "skipping wardlm-electron (--skip-electron)"
+fi
 
 # ---------- Phase 6: PATH wiring ----------
 log "wiring PATH via /etc/profile.d/wardlm.sh"
@@ -122,10 +162,11 @@ else
         fi
     fi
     if [ -z "${key:-}" ]; then
+        # `read -rs` is bash's password-style silent input; avoids the
+        # stty -echo / restore dance which can leave terminals stuck in
+        # emulated VMs.
         printf 'Anthropic API key (sk-ant-...): '
-        stty -echo
-        read -r key
-        stty echo
+        read -rs key
         echo
     fi
 fi
@@ -158,7 +199,12 @@ cat <<'EOF'
 
   Watch the unified audit log:
     tail -f /var/log/wardlm/wardlm.log
+EOF
+
+if [ "$skip_electron" -eq 0 ]; then
+    cat <<'EOF'
 
   Open the Electron viewer:
     wardlm
 EOF
+fi
