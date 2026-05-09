@@ -5,10 +5,9 @@ import React, {
   useDeferredValue,
 } from 'react';
 import { InitialPayload, LogErrorPayload, StatsPayload } from '../shared';
-import { Level, detectLevel } from './levels';
 import { TitleBar } from './TitleBar';
 import { Toolbar } from './Toolbar';
-import { LogView } from './LogView';
+import { LogTable } from './LogTable';
 import { StatusBar } from './StatusBar';
 import { PermissionCard } from './PermissionCard';
 import { ErrorCard } from './ErrorCard';
@@ -16,20 +15,29 @@ import { Sidebar, View } from './Sidebar';
 import { DashboardStats, HomeDashboard } from './HomeDashboard';
 import { SettingsView } from './SettingsView';
 
-const MAX_LINES = 5000;
+const MAX_ENTRIES = 5000;
 
-export type LineRecord = {
+export type LogEntry = {
   id: number;
-  text: string;
-  level: Level | null;
+  ts: number;
+  agent: string;
+  decision: string;
+  reason: string;
+  pid: number;
+  path: string;
+  argv: string[];
+  raw: string;
 };
+
+export type FilterField = 'agent' | 'decision' | 'reason' | 'path' | 'pid';
+export type ColumnFilters = Partial<Record<FilterField, Set<string>>>;
 
 type State = {
   path: string;
-  lines: LineRecord[];
+  entries: LogEntry[];
   totalSeen: number;
   query: string;
-  enabledLevels: Set<Level | 'none'>;
+  columnFilters: ColumnFilters;
   autoScroll: boolean;
   newCount: number;
   theme: 'light' | 'dark';
@@ -49,16 +57,14 @@ type Action =
   | { type: 'ERROR'; err: LogErrorPayload }
   | { type: 'CLEAR_ERROR' }
   | { type: 'SET_QUERY'; query: string }
-  | { type: 'TOGGLE_LEVEL'; level: Level | 'none' }
+  | { type: 'ADD_FILTER'; field: FilterField; value: string }
+  | { type: 'REMOVE_FILTER'; field: FilterField; value: string }
+  | { type: 'CLEAR_FILTERS' }
   | { type: 'TOGGLE_AUTOSCROLL'; value?: boolean }
   | { type: 'RESET_NEW_COUNT' }
   | { type: 'TOGGLE_THEME' }
   | { type: 'SET_VIEW'; view: View }
   | { type: 'SET_STATS'; stats: StatsPayload };
-
-const ALL_LEVELS = new Set<Level | 'none'>([
-  'fatal', 'error', 'warn', 'info', 'debug', 'trace', 'none',
-]);
 
 function loadTheme(): 'light' | 'dark' {
   try {
@@ -70,23 +76,38 @@ function loadTheme(): 'light' | 'dark' {
   return 'dark';
 }
 
-function parseDecision(text: string): 'allow' | 'deny' | null {
+function parseEntry(text: string, id: number): LogEntry | null {
+  let obj: Record<string, unknown>;
   try {
-    const obj = JSON.parse(text) as { decision?: unknown };
-    if (obj.decision === 'allow') return 'allow';
-    if (obj.decision === 'deny') return 'deny';
+    obj = JSON.parse(text) as Record<string, unknown>;
   } catch {
-    /* not JSONL — ignore */
+    return null;
   }
-  return null;
+  if (typeof obj !== 'object' || obj === null) return null;
+  const ts = obj.ts;
+  const decision = obj.decision;
+  if (typeof ts !== 'number' || typeof decision !== 'string') return null;
+  const argvRaw = obj.argv;
+  const argv = Array.isArray(argvRaw) ? argvRaw.map((a) => String(a)) : [];
+  return {
+    id,
+    ts,
+    agent: typeof obj.agent === 'string' ? obj.agent : '',
+    decision,
+    reason: typeof obj.reason === 'string' ? obj.reason : '',
+    pid: typeof obj.pid === 'number' ? obj.pid : 0,
+    path: typeof obj.path === 'string' ? obj.path : '',
+    argv,
+    raw: text,
+  };
 }
 
 const initialState: State = {
   path: '/var/log/wardlm/wardlm.log',
-  lines: [],
+  entries: [],
   totalSeen: 0,
   query: '',
-  enabledLevels: new Set(ALL_LEVELS),
+  columnFilters: {},
   autoScroll: true,
   newCount: 0,
   theme: loadTheme(),
@@ -99,28 +120,34 @@ const initialState: State = {
   stats: { total: 0, allowed: 0, denied: 0 },
 };
 
-function makeRecord(text: string, id: number): LineRecord {
-  return { id, text, level: detectLevel(text) };
-}
-
 function appendLine(state: State, text: string): State {
-  const rec = makeRecord(text, state.nextId);
-  let lines = state.lines;
-  if (lines.length >= MAX_LINES) {
-    lines = lines.slice(lines.length - MAX_LINES + 1);
+  const entry = parseEntry(text, state.nextId);
+  const totalSeen = state.totalSeen + 1;
+  const lastEventAt = Date.now();
+  if (!entry) {
+    return {
+      ...state,
+      totalSeen,
+      lastEventAt,
+      status: 'live',
+      error: null,
+    };
   }
-  const decision = parseDecision(text);
+  let entries = state.entries;
+  if (entries.length >= MAX_ENTRIES) {
+    entries = entries.slice(entries.length - MAX_ENTRIES + 1);
+  }
   const stats: DashboardStats = {
     total: state.stats.total + 1,
-    allowed: state.stats.allowed + (decision === 'allow' ? 1 : 0),
-    denied: state.stats.denied + (decision === 'deny' ? 1 : 0),
+    allowed: state.stats.allowed + (entry.decision === 'allow' ? 1 : 0),
+    denied: state.stats.denied + (entry.decision === 'deny' ? 1 : 0),
   };
   return {
     ...state,
-    lines: [...lines, rec],
-    totalSeen: state.totalSeen + 1,
+    entries: [...entries, entry],
+    totalSeen,
     newCount: state.autoScroll ? 0 : state.newCount + 1,
-    lastEventAt: Date.now(),
+    lastEventAt,
     nextId: state.nextId + 1,
     status: 'live',
     error: null,
@@ -132,13 +159,20 @@ function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'INIT': {
       let id = 0;
-      const lines = action.payload.lines.map((t) => makeRecord(t, id++));
+      const entries: LogEntry[] = [];
+      for (const text of action.payload.lines) {
+        const e = parseEntry(text, id);
+        if (e) {
+          entries.push(e);
+          id++;
+        }
+      }
       const err = action.payload.error;
       return {
         ...state,
         path: action.payload.path,
-        lines,
-        totalSeen: lines.length,
+        entries,
+        totalSeen: action.payload.lines.length,
         nextId: id,
         status: err ? 'error' : 'live',
         error: err,
@@ -154,12 +188,26 @@ function reducer(state: State, action: Action): State {
       return { ...state, error: null, status: 'connecting' };
     case 'SET_QUERY':
       return { ...state, query: action.query };
-    case 'TOGGLE_LEVEL': {
-      const next = new Set(state.enabledLevels);
-      if (next.has(action.level)) next.delete(action.level);
-      else next.add(action.level);
-      return { ...state, enabledLevels: next };
+    case 'ADD_FILTER': {
+      const next: ColumnFilters = { ...state.columnFilters };
+      const existing = next[action.field];
+      const set = new Set(existing ?? []);
+      set.add(action.value);
+      next[action.field] = set;
+      return { ...state, columnFilters: next };
     }
+    case 'REMOVE_FILTER': {
+      const next: ColumnFilters = { ...state.columnFilters };
+      const existing = next[action.field];
+      if (!existing) return state;
+      const set = new Set(existing);
+      set.delete(action.value);
+      if (set.size === 0) delete next[action.field];
+      else next[action.field] = set;
+      return { ...state, columnFilters: next };
+    }
+    case 'CLEAR_FILTERS':
+      return { ...state, columnFilters: {} };
     case 'TOGGLE_AUTOSCROLL': {
       const value = action.value ?? !state.autoScroll;
       return { ...state, autoScroll: value, newCount: value ? 0 : state.newCount };
@@ -185,6 +233,11 @@ function reducer(state: State, action: Action): State {
     default:
       return state;
   }
+}
+
+function entryFieldValue(entry: LogEntry, field: FilterField): string {
+  if (field === 'pid') return String(entry.pid);
+  return entry[field];
 }
 
 export function App(): JSX.Element {
@@ -244,19 +297,24 @@ export function App(): JSX.Element {
 
   const deferredQuery = useDeferredValue(state.query);
 
-  const visibleLines = useMemo(() => {
+  const visibleEntries = useMemo(() => {
     const q = deferredQuery.trim().toLowerCase();
-    const allLevels = state.enabledLevels.size === ALL_LEVELS.size;
-    if (!q && allLevels) return state.lines;
-    return state.lines.filter((rec) => {
-      if (!allLevels) {
-        const key: Level | 'none' = rec.level ?? 'none';
-        if (!state.enabledLevels.has(key)) return false;
+    const filterFields = Object.keys(state.columnFilters) as FilterField[];
+    const hasFilters = filterFields.length > 0;
+    if (!q && !hasFilters) return state.entries;
+    return state.entries.filter((entry) => {
+      for (const field of filterFields) {
+        const set = state.columnFilters[field];
+        if (!set || set.size === 0) continue;
+        if (!set.has(entryFieldValue(entry, field))) return false;
       }
-      if (q && !rec.text.toLowerCase().includes(q)) return false;
+      if (q) {
+        const haystack = `${entry.agent} ${entry.decision} ${entry.reason} ${entry.path} ${entry.argv.join(' ')}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
       return true;
     });
-  }, [state.lines, deferredQuery, state.enabledLevels]);
+  }, [state.entries, deferredQuery, state.columnFilters]);
 
   const handleRetry = async () => {
     dispatch({ type: 'CLEAR_ERROR' });
@@ -281,7 +339,7 @@ export function App(): JSX.Element {
     />
   );
 
-  if (state.error && state.lines.length === 0 && state.view === 'logs') {
+  if (state.error && state.entries.length === 0 && state.view === 'logs') {
     return (
       <div className="app">
         {sidebar}
@@ -322,16 +380,22 @@ export function App(): JSX.Element {
             <TitleBar path={state.path} />
             <Toolbar
               query={state.query}
-              enabledLevels={state.enabledLevels}
+              columnFilters={state.columnFilters}
               autoScroll={state.autoScroll}
               onQueryChange={(q) => dispatch({ type: 'SET_QUERY', query: q })}
-              onToggleLevel={(level) => dispatch({ type: 'TOGGLE_LEVEL', level })}
+              onRemoveFilter={(field, value) =>
+                dispatch({ type: 'REMOVE_FILTER', field, value })
+              }
+              onClearFilters={() => dispatch({ type: 'CLEAR_FILTERS' })}
               onToggleAutoScroll={() => dispatch({ type: 'TOGGLE_AUTOSCROLL' })}
             />
-            <LogView
-              lines={visibleLines}
+            <LogTable
+              entries={visibleEntries}
               autoScroll={state.autoScroll}
               newCount={state.newCount}
+              onAddFilter={(field, value) =>
+                dispatch({ type: 'ADD_FILTER', field, value })
+              }
               onUserScrollUp={() =>
                 dispatch({ type: 'TOGGLE_AUTOSCROLL', value: false })
               }
@@ -341,7 +405,7 @@ export function App(): JSX.Element {
             />
             <StatusBar
               totalSeen={state.totalSeen}
-              visible={visibleLines.length}
+              visible={visibleEntries.length}
               lastEventAt={state.lastEventAt}
               rotatedAt={state.rotatedAt}
               status={state.error ? 'error' : state.status}

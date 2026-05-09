@@ -15,6 +15,14 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('password-store', 'basic');
 }
 
+if (process.env.WARDLM_REMOTE_DEBUG_PORT) {
+  app.commandLine.appendSwitch(
+    'remote-debugging-port',
+    process.env.WARDLM_REMOTE_DEBUG_PORT,
+  );
+  app.commandLine.appendSwitch('remote-allow-origins', '*');
+}
+
 Menu.setApplicationMenu(null);
 
 const LOG_PATH = process.env.WARDLM_LOG_PATH || DEFAULT_LOG_PATH;

@@ -1,32 +1,40 @@
 import React from 'react';
-import { LEVELS, Level } from './levels';
+import { ColumnFilters, FilterField } from './App';
 
 type Props = {
   query: string;
-  enabledLevels: Set<Level | 'none'>;
+  columnFilters: ColumnFilters;
   autoScroll: boolean;
   onQueryChange: (q: string) => void;
-  onToggleLevel: (level: Level | 'none') => void;
+  onRemoveFilter: (field: FilterField, value: string) => void;
+  onClearFilters: () => void;
   onToggleAutoScroll: () => void;
 };
 
-const LEVEL_LABELS: Record<Level, string> = {
-  fatal: 'Fatal',
-  error: 'Error',
-  warn: 'Warn',
-  info: 'Info',
-  debug: 'Debug',
-  trace: 'Trace',
+const FIELD_LABELS: Record<FilterField, string> = {
+  agent: 'agent',
+  decision: 'decision',
+  reason: 'reason',
+  path: 'path',
+  pid: 'pid',
 };
 
 export function Toolbar({
   query,
-  enabledLevels,
+  columnFilters,
   autoScroll,
   onQueryChange,
-  onToggleLevel,
+  onRemoveFilter,
+  onClearFilters,
   onToggleAutoScroll,
 }: Props): JSX.Element {
+  const chips: { field: FilterField; value: string }[] = [];
+  (Object.keys(columnFilters) as FilterField[]).forEach((field) => {
+    const set = columnFilters[field];
+    if (!set) return;
+    set.forEach((value) => chips.push({ field, value }));
+  });
+
   return (
     <div className="toolbar">
       <div className="search">
@@ -49,21 +57,29 @@ export function Toolbar({
           </button>
         )}
       </div>
-      <div className="chips" role="group" aria-label="Filter by level">
-        {LEVELS.map((lvl) => {
-          const active = enabledLevels.has(lvl);
-          return (
-            <button
-              key={lvl}
-              type="button"
-              className={`chip chip--${lvl}${active ? ' chip--active' : ''}`}
-              onClick={() => onToggleLevel(lvl)}
-              aria-pressed={active}
-            >
-              {LEVEL_LABELS[lvl]}
-            </button>
-          );
-        })}
+      <div className="filter-chips" role="group" aria-label="Active filters">
+        {chips.map(({ field, value }) => (
+          <button
+            key={`${field}:${value}`}
+            type="button"
+            className="filter-chip"
+            onClick={() => onRemoveFilter(field, value)}
+            title={`Remove filter ${field} = ${value}`}
+          >
+            <span className="filter-chip__field">{FIELD_LABELS[field]}</span>
+            <span className="filter-chip__value">{value}</span>
+            <span className="filter-chip__close" aria-hidden="true">×</span>
+          </button>
+        ))}
+        {chips.length > 0 && (
+          <button
+            type="button"
+            className="btn btn--small filter-chips__clear"
+            onClick={onClearFilters}
+          >
+            Clear all
+          </button>
+        )}
       </div>
       <div className="toolbar__actions">
         <button
