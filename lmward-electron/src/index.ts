@@ -10,11 +10,13 @@ if (require('electron-squirrel-startup')) {
 }
 
 const LOG_PATH = process.env.LMWRAP_LOG_PATH || DEFAULT_LOG_PATH;
+const RING_LIMIT = 2000;
 
 let mainWindow: BrowserWindow | null = null;
 let tailer: LogTailer | null = null;
 let initialBuffer: string[] = [];
 let lastError: TailerError | null = null;
+let startInflight: Promise<InitialPayload> | null = null;
 
 function send(channel: string, payload?: unknown): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -22,9 +24,22 @@ function send(channel: string, payload?: unknown): void {
   }
 }
 
+function pushLine(line: string): void {
+  initialBuffer.push(line);
+  if (initialBuffer.length > RING_LIMIT) {
+    initialBuffer.splice(0, initialBuffer.length - RING_LIMIT);
+  }
+}
+
 function attachTailerEvents(t: LogTailer): void {
-  t.on('line', (line: string) => send(IPC.Line, line));
-  t.on('rotated', () => send(IPC.Rotated));
+  t.on('line', (line: string) => {
+    lastError = null;
+    pushLine(line);
+    send(IPC.Line, line);
+  });
+  t.on('rotated', () => {
+    send(IPC.Rotated);
+  });
   t.on('error', (err: TailerError) => {
     lastError = err;
     send(IPC.Error, err);
@@ -32,14 +47,22 @@ function attachTailerEvents(t: LogTailer): void {
 }
 
 async function startTailer(): Promise<InitialPayload> {
-  if (!tailer) {
-    tailer = new LogTailer(LOG_PATH);
-    attachTailerEvents(tailer);
-  }
-  lastError = null;
-  const { initial, path } = await tailer.start();
-  initialBuffer = initial;
-  return { path, lines: initial };
+  if (startInflight) return startInflight;
+  const promise = (async (): Promise<InitialPayload> => {
+    if (!tailer) {
+      tailer = new LogTailer(LOG_PATH);
+      attachTailerEvents(tailer);
+    }
+    const { initial, path, error } = await tailer.start();
+    initialBuffer = initial;
+    lastError = error;
+    return { path, lines: initial, error };
+  })();
+  startInflight = promise;
+  void promise.finally(() => {
+    if (startInflight === promise) startInflight = null;
+  });
+  return promise;
 }
 
 const createWindow = (): void => {
@@ -47,6 +70,7 @@ const createWindow = (): void => {
     width: 1100,
     height: 720,
     backgroundColor: '#0b0d10',
+    titleBarStyle: 'hidden',
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
       contextIsolation: true,
@@ -57,12 +81,13 @@ const createWindow = (): void => {
 
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
 
-  mainWindow.on('closed', () => {
-    mainWindow = null;
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url !== MAIN_WINDOW_WEBPACK_ENTRY) event.preventDefault();
   });
 
-  mainWindow.webContents.on('did-finish-load', () => {
-    if (lastError) send(IPC.Error, lastError);
+  mainWindow.on('closed', () => {
+    mainWindow = null;
   });
 };
 
@@ -70,11 +95,11 @@ ipcMain.handle(IPC.GetInitial, async (): Promise<InitialPayload> => {
   if (!tailer) {
     return startTailer();
   }
-  return { path: LOG_PATH, lines: initialBuffer };
+  return { path: LOG_PATH, lines: initialBuffer, error: lastError };
 });
 
-ipcMain.handle(IPC.Retry, async (): Promise<void> => {
-  await startTailer();
+ipcMain.handle(IPC.Retry, async (): Promise<InitialPayload> => {
+  return startTailer();
 });
 
 app.on('ready', async () => {

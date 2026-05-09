@@ -4,13 +4,14 @@ import React, {
   useReducer,
   useDeferredValue,
 } from 'react';
-import { LogErrorPayload } from '../shared';
+import { InitialPayload, LogErrorPayload } from '../shared';
 import { Level, detectLevel } from './levels';
 import { TitleBar } from './TitleBar';
 import { Toolbar } from './Toolbar';
 import { LogView } from './LogView';
 import { StatusBar } from './StatusBar';
 import { PermissionCard } from './PermissionCard';
+import { ErrorCard } from './ErrorCard';
 
 const MAX_LINES = 5000;
 
@@ -37,7 +38,7 @@ type State = {
 };
 
 type Action =
-  | { type: 'INIT'; path: string; lines: string[] }
+  | { type: 'INIT'; payload: InitialPayload }
   | { type: 'APPEND'; line: string }
   | { type: 'ROTATED' }
   | { type: 'ERROR'; err: LogErrorPayload }
@@ -104,16 +105,16 @@ function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'INIT': {
       let id = 0;
-      const lines = action.lines.map((t) => makeRecord(t, id++));
+      const lines = action.payload.lines.map((t) => makeRecord(t, id++));
+      const err = action.payload.error;
       return {
         ...state,
-        path: action.path,
+        path: action.payload.path,
         lines,
         totalSeen: lines.length,
         nextId: id,
-        status: 'live',
-        error: null,
-        lastEventAt: lines.length ? Date.now() : state.lastEventAt,
+        status: err ? 'error' : 'live',
+        error: err,
       };
     }
     case 'APPEND':
@@ -162,7 +163,7 @@ export function App(): JSX.Element {
       .getInitial()
       .then((payload) => {
         if (cancelled) return;
-        dispatch({ type: 'INIT', path: payload.path, lines: payload.lines });
+        dispatch({ type: 'INIT', payload });
       })
       .catch((err: Error) => {
         dispatch({
@@ -205,31 +206,38 @@ export function App(): JSX.Element {
     });
   }, [state.lines, deferredQuery, state.enabledLevels]);
 
-  if (state.error && state.error.code === 'EACCES') {
+  const handleRetry = async () => {
+    dispatch({ type: 'CLEAR_ERROR' });
+    try {
+      const payload = await window.lmwrap.retry();
+      dispatch({ type: 'INIT', payload });
+    } catch (err) {
+      const e = err as Error;
+      dispatch({
+        type: 'ERROR',
+        err: { code: 'EUNKNOWN', message: e.message },
+      });
+    }
+  };
+
+  if (state.error && state.lines.length === 0) {
     return (
       <div className="app">
-        <TitleBar
-          path={state.path}
-          status={state.status}
-        />
-        <PermissionCard
-          path={state.path}
-          message={state.error.message}
-          onRetry={async () => {
-            dispatch({ type: 'CLEAR_ERROR' });
-            try {
-              await window.lmwrap.retry();
-              const payload = await window.lmwrap.getInitial();
-              dispatch({ type: 'INIT', path: payload.path, lines: payload.lines });
-            } catch (err) {
-              const e = err as Error;
-              dispatch({
-                type: 'ERROR',
-                err: { code: 'EUNKNOWN', message: e.message },
-              });
-            }
-          }}
-        />
+        <TitleBar path={state.path} status={state.status} />
+        {state.error.code === 'EACCES' ? (
+          <PermissionCard
+            path={state.path}
+            message={state.error.message}
+            onRetry={handleRetry}
+          />
+        ) : (
+          <ErrorCard
+            path={state.path}
+            code={state.error.code}
+            message={state.error.message}
+            onRetry={handleRetry}
+          />
+        )}
       </div>
     );
   }
@@ -265,6 +273,7 @@ export function App(): JSX.Element {
         rotatedAt={state.rotatedAt}
         status={state.error ? 'error' : state.status}
         errorMessage={state.error?.message ?? null}
+        onRetry={handleRetry}
       />
     </div>
   );

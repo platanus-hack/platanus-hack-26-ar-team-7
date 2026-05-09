@@ -12,7 +12,7 @@ const subscribe = <T>(
 
 const api: LmwrapApi = {
   getInitial: (): Promise<InitialPayload> => ipcRenderer.invoke(IPC.GetInitial),
-  retry: (): Promise<void> => ipcRenderer.invoke(IPC.Retry),
+  retry: (): Promise<InitialPayload> => ipcRenderer.invoke(IPC.Retry),
   onLine: (cb) => subscribe<string>(IPC.Line, cb),
   onRotated: (cb) => subscribe<void>(IPC.Rotated, () => cb()),
   onError: (cb) => subscribe<LogErrorPayload>(IPC.Error, cb),

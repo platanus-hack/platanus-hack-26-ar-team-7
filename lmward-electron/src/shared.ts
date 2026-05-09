@@ -14,11 +14,12 @@ export type LogErrorPayload = {
 export type InitialPayload = {
   path: string;
   lines: string[];
+  error: LogErrorPayload | null;
 };
 
 export type LmwrapApi = {
   getInitial: () => Promise<InitialPayload>;
-  retry: () => Promise<void>;
+  retry: () => Promise<InitialPayload>;
   onLine: (cb: (line: string) => void) => () => void;
   onRotated: (cb: () => void) => () => void;
   onError: (cb: (err: LogErrorPayload) => void) => () => void;

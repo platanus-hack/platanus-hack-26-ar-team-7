@@ -1,7 +1,7 @@
 export const LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'] as const;
 export type Level = typeof LEVELS[number];
 
-const LEVEL_RE = /\b(FATAL|ERROR|WARN(?:ING)?|INFO|DEBUG|TRACE)\b/;
+const LEVEL_RE = /\b(FATAL|ERROR|WARN(?:ING)?|INFO|DEBUG|TRACE)\b/i;
 
 export function detectLevel(line: string): Level | null {
   const m = LEVEL_RE.exec(line);

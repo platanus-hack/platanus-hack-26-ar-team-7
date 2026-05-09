@@ -309,6 +309,12 @@ pre {
   cursor: not-allowed;
 }
 
+.btn--small {
+  padding: 0 8px;
+  height: 20px;
+  font-size: 11px;
+}
+
 /* LogView ----------------------------------------------------------------- */
 
 .logview-wrap {
