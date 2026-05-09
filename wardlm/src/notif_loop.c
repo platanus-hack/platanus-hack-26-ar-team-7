@@ -6,14 +6,41 @@
 #include "remote.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
 
 #include <linux/seccomp.h>
+
+/* Best-effort write of a deny message to the victim process's stderr.
+ * The victim is paused in seccomp until NOTIF_SEND, so /proc/<pid>/fd/2
+ * still points at whatever the victim opened (typically the agent's
+ * captured stderr pipe). On any error (closed/redirected fd, fast pid
+ * reuse, EBADF) we silently give up — visibility is a courtesy, the
+ * deny itself still happens. */
+static void notify_victim_stderr(pid_t pid, const char *path,
+                                 const char *reason) {
+    char fd_path[64];
+    snprintf(fd_path, sizeof(fd_path), "/proc/%d/fd/2", (int)pid);
+    int fd = open(fd_path, O_WRONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC);
+    if (fd < 0) return;
+
+    char msg[512];
+    int n = snprintf(msg, sizeof(msg),
+                     "[wardlm] DENY: %s — %s\n",
+                     (reason && *reason) ? reason : "policy_block",
+                     path ? path : "<unknown>");
+    if (n > 0) {
+        ssize_t r = write(fd, msg, (size_t)n);
+        (void)r;
+    }
+    close(fd);
+}
 
 void notif_loop(int listener_fd, volatile sig_atomic_t *stop_flag) {
     struct seccomp_notif_sizes sizes;
@@ -76,9 +103,8 @@ void notif_loop(int listener_fd, volatile sig_atomic_t *stop_flag) {
             resp->error = -EACCES;
             resp->val = 0;
             resp->flags = 0;
+            notify_victim_stderr((pid_t)req->pid, path, reason);
             log_jsonl("deny", reason, (pid_t)req->pid, path, argv, argc);
-            fprintf(stdout, "[wardlm] DENY pid=%u path=%s\n",
-                    (unsigned)req->pid, path);
         } else {
             resp->error = 0;
             resp->val = 0;
