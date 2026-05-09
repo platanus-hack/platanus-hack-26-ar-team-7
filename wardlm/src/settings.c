@@ -12,7 +12,7 @@
 
 static char  g_model_id[128]    = "claude-haiku-4-5";
 static int   g_max_tokens       = 200;
-static long  g_timeout_seconds  = 5;
+static long  g_timeout_seconds  = 30;
 static char  g_api_url[256]     = "https://api.anthropic.com/v1/messages";
 static char  g_api_version[64]  = "2023-06-01";
 
