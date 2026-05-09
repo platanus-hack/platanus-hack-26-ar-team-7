@@ -77,7 +77,7 @@ void notif_loop(int listener_fd, volatile sig_atomic_t *stop_flag) {
             resp->val = 0;
             resp->flags = 0;
             log_jsonl("deny", reason, (pid_t)req->pid, path, argv, argc);
-            fprintf(stderr, "[wardlm] DENY pid=%u path=%s\n",
+            fprintf(stdout, "[wardlm] DENY pid=%u path=%s\n",
                     (unsigned)req->pid, path);
         } else {
             resp->error = 0;
