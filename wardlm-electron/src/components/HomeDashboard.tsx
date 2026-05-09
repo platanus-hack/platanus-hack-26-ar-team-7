@@ -64,10 +64,16 @@ export function HomeDashboard({ stats }: Props): JSX.Element {
   return (
     <div className="dashboard">
       <header className="dashboard__header">
-        <h1 className="dashboard__title">Overview</h1>
-        <p className="dashboard__subtitle">
-          Lifetime totals across the entire audit log.
-        </p>
+        <div className="dashboard__header-text">
+          <h1 className="dashboard__title">Overview</h1>
+          <p className="dashboard__subtitle">
+            Lifetime totals across the entire audit log.
+          </p>
+        </div>
+        <div className="protection-badge" role="status" aria-label="Protection enabled">
+          <span className="protection-badge__dot" aria-hidden="true" />
+          <span>Protection Enabled</span>
+        </div>
       </header>
       <div className="dashboard__grid">
         <StatCard label="Commands executed" value={stats.total} tone="accent" />

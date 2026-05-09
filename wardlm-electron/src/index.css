@@ -105,13 +105,21 @@ pre {
 .sidebar__brand {
   display: flex;
   align-items: center;
-  height: 40px;
+  gap: 10px;
+  height: 56px;
   padding: 0 14px;
-  font-weight: 600;
-  font-size: 13px;
+  font-weight: 700;
+  font-size: 17px;
   letter-spacing: 0.01em;
   border-bottom: 1px solid var(--border);
   color: var(--fg);
+}
+
+.sidebar__brand-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  flex-shrink: 0;
 }
 
 .sidebar__list {
@@ -166,7 +174,36 @@ pre {
 }
 
 .dashboard__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 24px;
+}
+
+.protection-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--emerald);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.protection-badge__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--emerald);
+  box-shadow: 0 0 0 0 transparent;
+  animation: pulse 2.4s ease-in-out infinite;
 }
 
 .dashboard__title {
