@@ -171,6 +171,19 @@ if [ -n "$key" ]; then
     log "wrote ~/.wardlm/env"
 fi
 
+# Ensure /opt/wardlm/shim wins PATH even when .bashrc later prepends
+# other dirs (e.g. ~/.local/bin, ~/.npm-global/bin). /etc/profile.d
+# alone is not enough because user shell rc files run after it.
+bashrc="$HOME/.bashrc"
+marker="# wardlm: ensure shim dir wins PATH"
+if [ -f "$bashrc" ] && ! grep -qF "$marker" "$bashrc"; then
+    {
+        printf '\n%s\n' "$marker"
+        printf 'export PATH="/opt/wardlm/shim:$PATH"\n'
+    } >> "$bashrc"
+    log "appended PATH prepend to ~/.bashrc"
+fi
+
 # ---------- Phase 8: summary ----------
 cat <<'EOF'
 
