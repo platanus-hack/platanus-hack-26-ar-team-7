@@ -204,7 +204,7 @@ cat <<'EOF'
   wardlm installed.
 
   CLI binary:    /opt/wardlm/bin/wardlm
-  Shims:         /opt/wardlm/shim/   (25 agents)
+  Shims:         /opt/wardlm/shim/   (12 agents)
   Audit log:     /var/log/wardlm/wardlm.log
   PATH config:   /etc/profile.d/wardlm.sh
   User config:   ~/.config/wardlm/settings.json   (managed by wardlm-electron)

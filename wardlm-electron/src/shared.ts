@@ -44,8 +44,38 @@ export type InitialPayload = {
   error: LogErrorPayload | null;
 };
 
-export type AgentKey = 'claudeCode' | 'codex' | 'other';
+export type AgentKey =
+  | 'claude'
+  | 'codex'
+  | 'copilot'
+  | 'cursorAgent'
+  | 'gemini'
+  | 'amp'
+  | 'goose'
+  | 'opencode'
+  | 'openclaw'
+  | 'metagpt'
+  | 'crewai'
+  | 'manus'
+  | 'other';
 export type AgentBreakdown = { total: number; allowed: number; denied: number };
+
+export type AgentMeta = { key: AgentKey; shim: string; label: string };
+
+export const AGENTS: readonly AgentMeta[] = [
+  { key: 'claude', shim: 'claude', label: 'Claude Code' },
+  { key: 'codex', shim: 'codex', label: 'Codex' },
+  { key: 'copilot', shim: 'copilot', label: 'GitHub Copilot' },
+  { key: 'cursorAgent', shim: 'cursor-agent', label: 'Cursor Agent' },
+  { key: 'gemini', shim: 'gemini', label: 'Gemini CLI' },
+  { key: 'amp', shim: 'amp', label: 'Amp' },
+  { key: 'goose', shim: 'goose', label: 'Goose' },
+  { key: 'opencode', shim: 'opencode', label: 'OpenCode' },
+  { key: 'openclaw', shim: 'openclaw', label: 'OpenClaw' },
+  { key: 'metagpt', shim: 'metagpt', label: 'MetaGPT' },
+  { key: 'crewai', shim: 'crewai', label: 'CrewAI' },
+  { key: 'manus', shim: 'manus', label: 'Manus' },
+];
 
 export type StatsPayload = {
   total: number;

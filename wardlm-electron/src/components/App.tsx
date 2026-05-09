@@ -6,6 +6,8 @@ import React, {
   useDeferredValue,
 } from 'react';
 import {
+  AGENTS,
+  AgentBreakdown,
   AgentKey,
   DEFAULT_SETTINGS,
   InitialPayload,
@@ -105,10 +107,20 @@ function parseEntry(text: string, id: number): LogEntry | null {
   };
 }
 
+const SHIM_TO_KEY: Record<string, AgentKey> = Object.fromEntries(
+  AGENTS.map((a) => [a.shim, a.key]),
+);
+SHIM_TO_KEY['claude-code'] = 'claude';
+
 function toAgentKey(agent: string): AgentKey {
-  if (agent === 'claude-code') return 'claudeCode';
-  if (agent === 'codex') return 'codex';
-  return 'other';
+  return SHIM_TO_KEY[agent] ?? 'other';
+}
+
+function emptyAgents(): Record<AgentKey, AgentBreakdown> {
+  const keys: AgentKey[] = [...AGENTS.map((a) => a.key), 'other'];
+  return Object.fromEntries(
+    keys.map((k) => [k, { total: 0, allowed: 0, denied: 0 }]),
+  ) as Record<AgentKey, AgentBreakdown>;
 }
 
 const initialState: State = {
@@ -131,11 +143,7 @@ const initialState: State = {
     total: 0,
     allowed: 0,
     denied: 0,
-    agents: {
-      claudeCode: { total: 0, allowed: 0, denied: 0 },
-      codex: { total: 0, allowed: 0, denied: 0 },
-      other: { total: 0, allowed: 0, denied: 0 },
-    },
+    agents: emptyAgents(),
   },
 };
 
