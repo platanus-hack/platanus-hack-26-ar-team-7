@@ -4,6 +4,8 @@ import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-nati
 import { WebpackPlugin } from '@electron-forge/plugin-webpack';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import { copyFileSync, mkdirSync } from 'node:fs';
+import path from 'node:path';
 
 import { mainConfig } from './webpack.main.config';
 import { rendererConfig } from './webpack.renderer.config';
@@ -14,6 +16,22 @@ const config: ForgeConfig = {
     icon: './assets/icon',
   },
   rebuildConfig: {},
+  hooks: {
+    // Stage every produced .deb into ./dist/ under its native filename
+    // (wardlm_<version>_<arch>.deb) so the manual GitHub-release upload
+    // is just "drag dist/* into the release UI".
+    postMake: async (_forgeConfig, makeResults) => {
+      const distDir = path.resolve(__dirname, 'dist');
+      mkdirSync(distDir, { recursive: true });
+      for (const result of makeResults) {
+        for (const artifact of result.artifacts) {
+          if (!artifact.endsWith('.deb')) continue;
+          copyFileSync(artifact, path.join(distDir, path.basename(artifact)));
+        }
+      }
+      return makeResults;
+    },
+  },
   makers: [
     new MakerDeb({
       options: {
