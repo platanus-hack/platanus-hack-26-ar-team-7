@@ -2,9 +2,19 @@ import React, {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useDeferredValue,
 } from 'react';
-import { AgentKey, InitialPayload, LogErrorPayload, StatsPayload } from '../shared';
+import {
+  AgentKey,
+  DEFAULT_SETTINGS,
+  InitialPayload,
+  LogErrorPayload,
+  SecurityCheckKey,
+  SecurityChecks,
+  Settings,
+  StatsPayload,
+} from '../shared';
 import { TitleBar } from './TitleBar';
 import { Toolbar } from './Toolbar';
 import { LogTable } from './LogTable';
@@ -41,6 +51,7 @@ type State = {
   autoScroll: boolean;
   newCount: number;
   theme: 'light' | 'dark';
+  securityChecks: SecurityChecks;
   error: LogErrorPayload | null;
   rotatedAt: number | null;
   lastEventAt: number | null;
@@ -63,18 +74,10 @@ type Action =
   | { type: 'TOGGLE_AUTOSCROLL'; value?: boolean }
   | { type: 'RESET_NEW_COUNT' }
   | { type: 'TOGGLE_THEME' }
+  | { type: 'SET_SECURITY_CHECK'; key: SecurityCheckKey; value: boolean }
+  | { type: 'LOAD_SETTINGS'; settings: Settings }
   | { type: 'SET_VIEW'; view: View }
   | { type: 'SET_STATS'; stats: StatsPayload };
-
-function loadTheme(): 'light' | 'dark' {
-  try {
-    const v = localStorage.getItem('wardlm.theme');
-    if (v === 'light' || v === 'dark') return v;
-  } catch {
-    /* ignore */
-  }
-  return 'dark';
-}
 
 function parseEntry(text: string, id: number): LogEntry | null {
   let obj: Record<string, unknown>;
@@ -109,14 +112,15 @@ function toAgentKey(agent: string): AgentKey {
 }
 
 const initialState: State = {
-  path: '/var/log/wardlm/wardlm.log',
+  path: '',
   entries: [],
   totalSeen: 0,
   query: '',
   columnFilters: {},
   autoScroll: true,
   newCount: 0,
-  theme: loadTheme(),
+  theme: DEFAULT_SETTINGS.theme,
+  securityChecks: { ...DEFAULT_SETTINGS.securityChecks },
   error: null,
   rotatedAt: null,
   lastEventAt: null,
@@ -241,9 +245,22 @@ function reducer(state: State, action: Action): State {
       return { ...state, newCount: 0 };
     case 'TOGGLE_THEME': {
       const theme = state.theme === 'dark' ? 'light' : 'dark';
-      try { localStorage.setItem('wardlm.theme', theme); } catch { /* ignore */ }
       return { ...state, theme };
     }
+    case 'SET_SECURITY_CHECK':
+      return {
+        ...state,
+        securityChecks: {
+          ...state.securityChecks,
+          [action.key]: action.value,
+        },
+      };
+    case 'LOAD_SETTINGS':
+      return {
+        ...state,
+        theme: action.settings.theme,
+        securityChecks: { ...action.settings.securityChecks },
+      };
     case 'SET_VIEW':
       return { ...state, view: action.view };
     case 'SET_STATS':
@@ -268,10 +285,39 @@ function entryFieldValue(entry: LogEntry, field: FilterField): string {
 
 export function App(): JSX.Element {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const settingsLoadedRef = useRef(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = state.theme;
   }, [state.theme]);
+
+  useEffect(() => {
+    void window.wardlm
+      .getSettings()
+      .then((settings) => {
+        dispatch({ type: 'LOAD_SETTINGS', settings });
+        settingsLoadedRef.current = true;
+      })
+      .catch(() => {
+        settingsLoadedRef.current = true;
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!settingsLoadedRef.current) return;
+    void window.wardlm.setSettings({ theme: state.theme }).catch(() => {
+      /* persistence is best-effort */
+    });
+  }, [state.theme]);
+
+  useEffect(() => {
+    if (!settingsLoadedRef.current) return;
+    void window.wardlm
+      .setSettings({ securityChecks: state.securityChecks })
+      .catch(() => {
+        /* persistence is best-effort */
+      });
+  }, [state.securityChecks]);
 
   useEffect(() => {
     let cancelled = false;
@@ -400,6 +446,14 @@ export function App(): JSX.Element {
           <SettingsView
             theme={state.theme}
             onToggleTheme={() => dispatch({ type: 'TOGGLE_THEME' })}
+            securityChecks={state.securityChecks}
+            onToggleSecurityCheck={(key) =>
+              dispatch({
+                type: 'SET_SECURITY_CHECK',
+                key,
+                value: !state.securityChecks[key],
+              })
+            }
           />
         ) : (
           <>

@@ -2,13 +2,14 @@ import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
 import chokidar, { FSWatcher } from 'chokidar';
+import { LOG_PATH } from './paths';
 
 const CHUNK = 64 * 1024;
 const INITIAL_LINES = 2000;
 const MAX_INITIAL_BYTES = 8 * 1024 * 1024;
 const MAX_LINE_BYTES = 1 * 1024 * 1024;
 
-export const DEFAULT_LOG_PATH = '/var/log/wardlm/wardlm.log';
+export const DEFAULT_LOG_PATH = LOG_PATH;
 
 export type TailerError = { code: string; message: string };
 
