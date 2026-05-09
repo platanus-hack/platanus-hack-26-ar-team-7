@@ -148,27 +148,19 @@ else
 fi
 
 # API key: env var wins, else prompt.
+key=""
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
     key="$ANTHROPIC_API_KEY"
     log "using ANTHROPIC_API_KEY from environment"
+elif [ ! -e /dev/tty ]; then
+    warn "no tty available to prompt for API key; skipping (set up ~/.wardlm/env manually)"
 else
-    if [ ! -t 0 ]; then
-        # Reopen stdin from the controlling tty when piped (curl | bash).
-        if [ -e /dev/tty ]; then
-            exec </dev/tty
-        else
-            warn "no tty available to prompt for API key; skipping (set up ~/.wardlm/env manually)"
-            key=""
-        fi
-    fi
-    if [ -z "${key:-}" ]; then
-        # `read -rs` is bash's password-style silent input; avoids the
-        # stty -echo / restore dance which can leave terminals stuck in
-        # emulated VMs.
-        printf 'Anthropic API key (sk-ant-...): '
-        read -rs key
-        echo
-    fi
+    # Read straight from /dev/tty (works under curl|bash without
+    # touching the global stdin). `read -rs` does silent input, no stty
+    # juggling.
+    printf 'Anthropic API key (sk-ant-...): ' >/dev/tty
+    read -rs key </dev/tty
+    printf '\n' >/dev/tty
 fi
 
 if [ -n "$key" ]; then
