@@ -13,6 +13,28 @@
 
 set -euo pipefail
 
+# ---------- Flag parsing ----------
+assume_yes=0
+
+usage() {
+    cat <<EOF
+usage: uninstall.sh [-y|--yes|--purge]
+
+Options:
+  -y, --yes, --purge   Remove all user data without prompting
+                       (~/.wardlm, ~/.config/wardlm, /var/log/wardlm).
+  -h, --help           Show this help.
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -y|--yes|--purge) assume_yes=1; shift ;;
+        -h|--help)        usage; exit 0 ;;
+        *) printf 'unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+    esac
+done
+
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!!\033[0m  %s\n' "$*" >&2; }
 fail() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -24,12 +46,13 @@ fi
 
 confirm() {
     local prompt="$1" reply
+    if [ "$assume_yes" -eq 1 ]; then return 0; fi
     if [ -t 0 ]; then
         printf '%s [y/N] ' "$prompt"
         read -r reply
         case "$reply" in y|Y|yes|YES) return 0 ;; *) return 1 ;; esac
     fi
-    return 1   # non-interactive: default to "no" for destructive prompts
+    return 1   # non-interactive without --yes: default to "no" for destructive prompts
 }
 
 [ "$(uname -s)" = "Linux" ] || fail "wardlm only supports Linux"
@@ -85,10 +108,26 @@ if [ -d "$HOME/.config/wardlm" ]; then
     fi
 fi
 
+# ---------- 7. shell rc PATH block ----------
+# Strip the PATH-prepend block install.sh appended to the user's shell
+# rc files. First sed handles the bracketed (current) form; second
+# handles the legacy single-marker form (marker + the export line that
+# follows it).
+strip_path_block() {
+    local rc="$1"
+    [ -f "$rc" ] || return 0
+    grep -qE '^# wardlm-path-begin$|^# wardlm: ensure shim dir wins PATH$' "$rc" || return 0
+    sed -i -e '/# wardlm-path-begin/,/# wardlm-path-end/d' \
+           -e '/# wardlm: ensure shim dir wins PATH/{N;d;}' "$rc"
+    log "stripped wardlm PATH block from $rc"
+}
+strip_path_block "$HOME/.bashrc"
+strip_path_block "$HOME/.zshrc"
+
 cat <<'EOF'
 
   wardlm uninstalled.
 
-  Note: PATH changes from /etc/profile.d/wardlm.sh remain active in
-  current shells until you open a new one.
+  Note: PATH changes from /etc/profile.d/wardlm.sh and your shell rc
+  remain active in current shells until you open a new one.
 EOF

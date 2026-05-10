@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import Chip from "./chip";
 import Button from "./button";
 
-const INSTALL_CMD = "curl -sSL https://wardlm.vercel.app/install.sh | sh";
+const INSTALL_CMD = "curl -fsSL https://wardlm.vercel.app/install.sh | bash";
 const GITHUB_URL =
   "https://github.com/platanus-hack/platanus-hack-26-ar-team-7";
 

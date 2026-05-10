@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # wardlm installer.
 #
-#   curl -fsSL https://raw.githubusercontent.com/platanus-hack/platanus-hack-26-ar-team-7/main/install.sh | bash
+#   curl -fsSL https://wardlm.vercel.app/install.sh | bash
 #
 # Builds and installs:
 #   - wardlm (CLI exec-guard)         -> /opt/wardlm/bin, /opt/wardlm/shim
@@ -76,17 +76,32 @@ command -v dpkg    >/dev/null || fail "dpkg not found (Debian/Ubuntu only)"
 command -v curl    >/dev/null || fail "curl required to fetch the wardlm-electron .deb"
 command -v sudo    >/dev/null || fail "sudo required"
 
-# ---------- Phase 2: build deps ----------
-log "installing build dependencies (apt)"
-sudo apt-get update -qq
-sudo apt-get install -y build-essential libcurl4-openssl-dev git
+# Validate ANTHROPIC_API_KEY format up front so a typo doesn't survive
+# all the way past apt-get + the C build + the .deb install.
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    [[ "$ANTHROPIC_API_KEY" =~ ^sk-ant- ]] \
+        || fail "ANTHROPIC_API_KEY in env must start with sk-ant-"
+fi
 
-# ---------- Phase 3: source code ----------
-# If invoked from a checkout (./install.sh), use $PWD. Otherwise clone.
-if [ -f "$PWD/install.sh" ] && [ -d "$PWD/wardlm" ] && [ -d "$PWD/wardlm-electron" ]; then
+# Decide now whether we'll clone so we can skip installing git when
+# the user invoked us from a local checkout.
+need_clone=0
+if [ -f "$PWD/install.sh" ] && [ -f "$PWD/wardlm/Makefile" ] && [ -d "$PWD/wardlm-electron" ]; then
     REPO="$PWD"
     log "using local checkout: $REPO"
 else
+    need_clone=1
+fi
+
+# ---------- Phase 2: build deps ----------
+log "installing build dependencies (apt)"
+sudo apt-get update -qq
+deps=(build-essential libcurl4-openssl-dev)
+[ "$need_clone" -eq 1 ] && deps+=(git)
+sudo apt-get install -y "${deps[@]}"
+
+# ---------- Phase 3: source code ----------
+if [ "$need_clone" -eq 1 ]; then
     TMPDIR_INSTALL="$(mktemp -d)"
     REPO="$TMPDIR_INSTALL/repo"
     log "cloning $REPO_URL -> $REPO"
@@ -105,9 +120,16 @@ sudo install -m 0755 "$REPO/wardlm"/shim/* /opt/wardlm/shim/
 
 # ---------- Phase 5: download + install wardlm-electron .deb (GitHub release) ----------
 if [ "$skip_electron" -eq 0 ]; then
-    version="$(sed -nE 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' \
-        "$REPO/wardlm-electron/package.json" | head -1)"
-    [ -n "$version" ] || fail "could not read version from wardlm-electron/package.json"
+    pkg_json="$REPO/wardlm-electron/package.json"
+    if command -v jq >/dev/null 2>&1; then
+        version="$(jq -r '.version' "$pkg_json")"
+    elif command -v python3 >/dev/null 2>&1; then
+        version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$pkg_json")"
+    else
+        version="$(sed -nE 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$pkg_json" | head -1)"
+    fi
+    [ -n "$version" ] && [ "$version" != "null" ] \
+        || fail "could not read version from $pkg_json"
 
     deb_name="wardlm_${version}_${deb_arch}.deb"
     deb_url="$RELEASE_URL/$deb_name"
@@ -119,7 +141,13 @@ if [ "$skip_electron" -eq 0 ]; then
         || fail "failed to download $deb_url"
 
     log "installing $deb_name (sudo)"
-    sudo dpkg -i "$deb" || sudo apt-get install -f -y
+    if ! sudo dpkg -i "$deb"; then
+        sudo apt-get install -f -y
+    fi
+    # apt-get install -f can "succeed" by removing the broken package,
+    # leaving us with no electron viewer but a green script. Verify.
+    dpkg -s wardlm >/dev/null 2>&1 \
+        || fail "wardlm-electron .deb did not install cleanly (dpkg -s wardlm reports not installed)"
 else
     log "skipping wardlm-electron (--skip-electron)"
 fi
@@ -131,7 +159,8 @@ export PATH="/opt/wardlm/shim:$PATH"
 EOF
 sudo chmod 0644 /etc/profile.d/wardlm.sh
 
-# ---------- Phase 7: per-user setup ----------log "per-user setup"
+# ---------- Phase 7: per-user setup ----------
+log "per-user setup"
 
 # Seed ~/.config/wardlm/settings.json with the repo defaults if missing.
 # wardlm-electron writes this file on first launch; we replicate the same
@@ -165,34 +194,41 @@ else
     # Read straight from /dev/tty (works under curl|bash without
     # touching the global stdin). `read -rs` does silent input, no stty
     # juggling.
-    printf 'Anthropic API key (sk-ant-...): ' >/dev/tty
-    read -rs key </dev/tty
-    printf '\n' >/dev/tty
+    for attempt in 1 2 3; do
+        printf 'Anthropic API key (sk-ant-...): ' >/dev/tty
+        read -rs key </dev/tty
+        printf '\n' >/dev/tty
+        [ -z "$key" ] && break
+        [[ "$key" =~ ^sk-ant- ]] && break
+        warn "key must start with sk-ant- (attempt $attempt/3)"
+        key=""
+    done
 fi
 
 if [ -n "$key" ]; then
-    [[ "$key" =~ ^sk-ant- ]] || fail "key must start with sk-ant-"
-    umask 077
-    printf 'export ANTHROPIC_API_KEY=%q\n' "$key" > "$HOME/.wardlm/env"
-    chmod 0600 "$HOME/.wardlm/env"
+    (umask 077 && printf 'export ANTHROPIC_API_KEY=%q\n' "$key" > "$HOME/.wardlm/env")
     log "wrote ~/.wardlm/env"
 fi
 
-# Ensure /opt/wardlm/shim wins PATH even when .bashrc later prepends
-# other dirs (e.g. ~/.local/bin, ~/.npm-global/bin). /etc/profile.d
-# alone is not enough because user shell rc files run after it.
-bashrc="$HOME/.bashrc"
-marker="# wardlm: ensure shim dir wins PATH"
-if [ -f "$bashrc" ] && ! grep -qF "$marker" "$bashrc"; then
+# /etc/profile.d only fires for login shells. Append the same PATH
+# prepend to user rc files so interactive non-login shells (where
+# ~/.local/bin etc. would otherwise shadow the shim) get it too.
+# Bracketed markers let the uninstaller strip the block cleanly.
+append_path_block() {
+    local rc="$1"
+    [ -f "$rc" ] || return 0
+    grep -qF "# wardlm-path-begin" "$rc" && return 0
     {
-        printf '\n%s\n' "$marker"
-        # $PATH must remain a literal here; it gets expanded when
-        # .bashrc is sourced later, not when this installer runs.
+        printf '\n# wardlm-path-begin\n'
+        # $PATH expands when the rc file is sourced, not now.
         # shellcheck disable=SC2016
         printf 'export PATH="/opt/wardlm/shim:$PATH"\n'
-    } >> "$bashrc"
-    log "appended PATH prepend to ~/.bashrc"
-fi
+        printf '# wardlm-path-end\n'
+    } >> "$rc"
+    log "appended PATH prepend to $rc"
+}
+append_path_block "$HOME/.bashrc"
+append_path_block "$HOME/.zshrc"
 
 # ---------- Phase 8: summary ----------
 cat <<'EOF'
@@ -208,7 +244,15 @@ cat <<'EOF'
 
   Activate now in this shell:
     source /etc/profile.d/wardlm.sh
-    . ~/.wardlm/env
+EOF
+
+if [ -f "$HOME/.wardlm/env" ]; then
+    printf '    . ~/.wardlm/env\n'
+else
+    printf '    (~/.wardlm/env not yet created — set ANTHROPIC_API_KEY there)\n'
+fi
+
+cat <<'EOF'
 
   Or open a new terminal — login shells pick it up automatically.
 
