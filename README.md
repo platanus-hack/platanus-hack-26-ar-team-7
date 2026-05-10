@@ -25,6 +25,10 @@ Agent harnesses already have application-level guardrails. wardlm adds the missi
 - Real-time desktop audit viewer (Electron)
 - Per-agent shims for common tools (e.g. `claude-code`) and JSON-based policy config
 
+# Landing Page
+
+Visit us @ [https://wardlm.vercel.app/](https://wardlm.vercel.app/)
+
 ## Install
 
 ```bash
@@ -41,4 +45,3 @@ curl -fsSL https://wardlm.vercel.app/install.sh | bash
 - `wardlm/` — C core: seccomp listener, shims, Makefile build
 - `wardlm-electron/` — Electron + React desktop audit viewer
 - `wardlm-landing/` — Next.js landing site (hosts `install.sh`)
-
