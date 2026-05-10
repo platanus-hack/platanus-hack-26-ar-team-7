@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import {
   AGENTS,
+  AGENT_SHIM_ALIASES,
   AgentBreakdown,
   AgentKey,
   DEFAULT_SETTINGS,
@@ -79,7 +80,11 @@ type Action =
   | { type: 'SET_SECURITY_CHECK'; key: SecurityCheckKey; value: boolean }
   | { type: 'LOAD_SETTINGS'; settings: Settings }
   | { type: 'SET_VIEW'; view: View }
-  | { type: 'SET_STATS'; stats: StatsPayload };
+  | { type: 'SET_STATS'; stats: StatsPayload }
+  | {
+      type: 'NAVIGATE_TO_LOGS';
+      filters: Partial<Record<FilterField, string[]>>;
+    };
 
 function parseEntry(text: string, id: number): LogEntry | null {
   let obj: Record<string, unknown>;
@@ -110,7 +115,10 @@ function parseEntry(text: string, id: number): LogEntry | null {
 const SHIM_TO_KEY: Record<string, AgentKey> = Object.fromEntries(
   AGENTS.map((a) => [a.shim, a.key]),
 );
-SHIM_TO_KEY['claude-code'] = 'claude';
+for (const [key, aliases] of Object.entries(AGENT_SHIM_ALIASES)) {
+  if (!aliases) continue;
+  for (const alias of aliases) SHIM_TO_KEY[alias] = key as AgentKey;
+}
 
 function toAgentKey(agent: string): AgentKey {
   return SHIM_TO_KEY[agent] ?? 'other';
@@ -271,6 +279,14 @@ function reducer(state: State, action: Action): State {
       };
     case 'SET_VIEW':
       return { ...state, view: action.view };
+    case 'NAVIGATE_TO_LOGS': {
+      const next: ColumnFilters = {};
+      for (const [field, values] of Object.entries(action.filters)) {
+        if (!values || values.length === 0) continue;
+        next[field as FilterField] = new Set(values);
+      }
+      return { ...state, view: 'logs', columnFilters: next };
+    }
     case 'SET_STATS':
       return {
         ...state,
@@ -449,7 +465,12 @@ export function App(): JSX.Element {
       {sidebar}
       <main className="app__main">
         {state.view === 'home' ? (
-          <HomeDashboard stats={state.stats} />
+          <HomeDashboard
+            stats={state.stats}
+            onNavigate={(filters) =>
+              dispatch({ type: 'NAVIGATE_TO_LOGS', filters })
+            }
+          />
         ) : state.view === 'settings' ? (
           <SettingsView
             theme={state.theme}

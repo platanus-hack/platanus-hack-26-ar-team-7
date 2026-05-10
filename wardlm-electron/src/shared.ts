@@ -77,6 +77,18 @@ export const AGENTS: readonly AgentMeta[] = [
   { key: 'manus', shim: 'manus', label: 'Manus' },
 ];
 
+export const AGENT_SHIM_ALIASES: Partial<Record<AgentKey, readonly string[]>> = {
+  claude: ['claude-code'],
+};
+
+export function shimsForAgentKey(key: AgentKey): string[] {
+  if (key === 'other') return [];
+  const meta = AGENTS.find((a) => a.key === key);
+  const base = meta ? [meta.shim] : [];
+  const aliases = AGENT_SHIM_ALIASES[key];
+  return aliases ? [...base, ...aliases] : base;
+}
+
 export type StatsPayload = {
   total: number;
   allowed: number;

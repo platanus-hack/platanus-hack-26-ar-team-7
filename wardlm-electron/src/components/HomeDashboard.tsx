@@ -1,6 +1,7 @@
 import React from 'react';
 import { Boxes } from 'lucide-react';
-import { AGENTS, AgentBreakdown, AgentKey } from '../shared';
+import { AGENTS, AgentBreakdown, AgentKey, shimsForAgentKey } from '../shared';
+import { FilterField } from './App';
 import {
   AmpIcon,
   ClaudeCodeIcon,
@@ -23,8 +24,11 @@ export type DashboardStats = {
   agents: Record<AgentKey, AgentBreakdown>;
 };
 
+export type DashboardFilters = Partial<Record<FilterField, string[]>>;
+
 type Props = {
   stats: DashboardStats;
+  onNavigate: (filters: DashboardFilters) => void;
 };
 
 const fmt = new Intl.NumberFormat('en-US');
@@ -49,7 +53,7 @@ const AGENT_ICONS: Record<AgentKey, JSX.Element> = {
 
 type Row = { key: AgentKey; label: string; breakdown: AgentBreakdown };
 
-export function HomeDashboard({ stats }: Props): JSX.Element {
+export function HomeDashboard({ stats, onNavigate }: Props): JSX.Element {
   const rows: Row[] = [
     ...AGENTS.map((a) => ({
       key: a.key,
@@ -76,9 +80,27 @@ export function HomeDashboard({ stats }: Props): JSX.Element {
         </div>
       </header>
       <div className="dashboard__grid">
-        <StatCard label="Commands executed" value={stats.total} tone="accent" />
-        <StatCard label="Approved" value={stats.allowed} tone="emerald" />
-        <StatCard label="Denied" value={stats.denied} tone="rose" />
+        <StatCard
+          label="Commands executed"
+          value={stats.total}
+          tone="accent"
+          onClick={() => onNavigate({})}
+          title="View all commands in logs"
+        />
+        <StatCard
+          label="Approved"
+          value={stats.allowed}
+          tone="emerald"
+          onClick={() => onNavigate({ decision: ['allow'] })}
+          title="View approved commands in logs"
+        />
+        <StatCard
+          label="Denied"
+          value={stats.denied}
+          tone="rose"
+          onClick={() => onNavigate({ decision: ['deny'] })}
+          title="View denied commands in logs"
+        />
       </div>
 
       <h2 className="dashboard__section-title">Agents</h2>
@@ -86,9 +108,11 @@ export function HomeDashboard({ stats }: Props): JSX.Element {
         {active.map((r) => (
           <AgentRow
             key={r.key}
+            agentKey={r.key}
             icon={AGENT_ICONS[r.key]}
             label={r.label}
             breakdown={r.breakdown}
+            onNavigate={onNavigate}
           />
         ))}
         {inactive.length > 0 && (
@@ -97,9 +121,11 @@ export function HomeDashboard({ stats }: Props): JSX.Element {
             {inactive.map((r) => (
               <AgentRow
                 key={r.key}
+                agentKey={r.key}
                 icon={AGENT_ICONS[r.key]}
                 label={r.label}
                 breakdown={r.breakdown}
+                onNavigate={onNavigate}
               />
             ))}
           </details>
@@ -113,35 +139,111 @@ type StatCardProps = {
   label: string;
   value: number;
   tone: 'accent' | 'emerald' | 'rose';
+  onClick: () => void;
+  title: string;
 };
 
-function StatCard({ label, value, tone }: StatCardProps): JSX.Element {
+function StatCard({ label, value, tone, onClick, title }: StatCardProps): JSX.Element {
   return (
-    <div className={`stat-card stat-card--${tone}`}>
+    <button
+      type="button"
+      className={`stat-card stat-card--${tone} stat-card--clickable`}
+      onClick={onClick}
+      title={title}
+    >
       <div className="stat-card__label">{label}</div>
       <div className="stat-card__value">{fmt.format(value)}</div>
-    </div>
+    </button>
   );
 }
 
 type AgentRowProps = {
+  agentKey: AgentKey;
   icon: JSX.Element;
   label: string;
   breakdown: AgentBreakdown;
+  onNavigate: (filters: DashboardFilters) => void;
 };
 
-function AgentRow({ icon, label, breakdown }: AgentRowProps): JSX.Element {
+function AgentRow({
+  agentKey,
+  icon,
+  label,
+  breakdown,
+  onNavigate,
+}: AgentRowProps): JSX.Element {
+  const isOther = agentKey === 'other';
+  const shims = isOther ? [] : shimsForAgentKey(agentKey);
+
+  const head = (
+    <div className="agent-row__head">
+      <span className="agent-row__icon" aria-hidden="true">{icon}</span>
+      <span className="agent-row__label">{label}</span>
+    </div>
+  );
+
+  const stats = (
+    <div className="agent-row__stats">
+      <AgentStat
+        label="Total"
+        value={breakdown.total}
+        tone="accent"
+        onClick={isOther ? undefined : () => onNavigate({ agent: shims })}
+        title={isOther ? undefined : `View all ${label} commands in logs`}
+      />
+      <AgentStat
+        label="Approved"
+        value={breakdown.allowed}
+        tone="emerald"
+        onClick={
+          isOther
+            ? undefined
+            : () => onNavigate({ agent: shims, decision: ['allow'] })
+        }
+        title={isOther ? undefined : `View approved ${label} commands in logs`}
+      />
+      <AgentStat
+        label="Denied"
+        value={breakdown.denied}
+        tone="rose"
+        onClick={
+          isOther
+            ? undefined
+            : () => onNavigate({ agent: shims, decision: ['deny'] })
+        }
+        title={isOther ? undefined : `View denied ${label} commands in logs`}
+      />
+    </div>
+  );
+
+  if (isOther) {
+    return (
+      <div className="agent-row">
+        {head}
+        {stats}
+      </div>
+    );
+  }
+
+  const handleClick = () => onNavigate({ agent: shims });
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  };
+
   return (
-    <div className="agent-row">
-      <div className="agent-row__head">
-        <span className="agent-row__icon" aria-hidden="true">{icon}</span>
-        <span className="agent-row__label">{label}</span>
-      </div>
-      <div className="agent-row__stats">
-        <AgentStat label="Total" value={breakdown.total} tone="accent" />
-        <AgentStat label="Approved" value={breakdown.allowed} tone="emerald" />
-        <AgentStat label="Denied" value={breakdown.denied} tone="rose" />
-      </div>
+    <div
+      className="agent-row agent-row--clickable"
+      role="button"
+      tabIndex={0}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      title={`View ${label} commands in logs`}
+    >
+      {head}
+      {stats}
     </div>
   );
 }
@@ -150,13 +252,31 @@ type AgentStatProps = {
   label: string;
   value: number;
   tone: 'accent' | 'emerald' | 'rose';
+  onClick?: () => void;
+  title?: string;
 };
 
-function AgentStat({ label, value, tone }: AgentStatProps): JSX.Element {
+function AgentStat({ label, value, tone, onClick, title }: AgentStatProps): JSX.Element {
+  if (!onClick) {
+    return (
+      <div className={`agent-stat agent-stat--${tone}`}>
+        <div className="agent-stat__label">{label}</div>
+        <div className="agent-stat__value">{fmt.format(value)}</div>
+      </div>
+    );
+  }
   return (
-    <div className={`agent-stat agent-stat--${tone}`}>
+    <button
+      type="button"
+      className={`agent-stat agent-stat--${tone} agent-stat--clickable`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      title={title}
+    >
       <div className="agent-stat__label">{label}</div>
       <div className="agent-stat__value">{fmt.format(value)}</div>
-    </div>
+    </button>
   );
 }
