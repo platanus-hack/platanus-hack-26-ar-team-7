@@ -9,7 +9,7 @@ export default function Footer() {
               <span className="text-slate-200">lm</span>
             </div>
             <p className="text-slate-600 text-[12px] mb-1">
-              Defensa kernel-level para tu AI agent.
+              Defensa kernel-level para tus agentes.
             </p>
             <p className="text-slate-700 text-[11px] font-mono">
               MIT licensed. No telemetry. Your machine, your rules.

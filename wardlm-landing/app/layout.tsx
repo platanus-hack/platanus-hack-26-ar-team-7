@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "wardlm — Defensa kernel-level para tu AI agent",
+  title: "wardlm",
   description:
-    "Wrapper en C con seccomp. Bloquea comandos peligrosos ejecutados por AI agents antes de que lleguen al sistema. Compatible con Claude Code, openclaw, Codex, Cursor, Aider.",
+    "Wrapper en C con seccomp. Bloquea comandos peligrosos ejecutados por agentes antes de que lleguen al sistema. Compatible con Claude Code, openclaw, Codex, Cursor, Aider.",
 };
 
 export default function RootLayout({

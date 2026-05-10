@@ -20,7 +20,7 @@ export default function Install() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2200);
     } catch {
-      /* ignore */
+      // clipboard write can reject without user gesture — fail silently
     }
   };
 
@@ -29,7 +29,6 @@ export default function Install() {
       id="install"
       className="relative py-32 border-t border-blue-950/60 overflow-hidden grid-bg"
     >
-      {/* Orbs */}
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none flex items-center justify-center"
@@ -39,7 +38,6 @@ export default function Install() {
       </div>
 
       <div className="relative max-w-2xl mx-auto px-6 text-center">
-        {/* Eyebrow */}
         <Chip color="sky" className="mb-10">
           MIT · Sin telemetría · Linux kernel 5.0+
         </Chip>
@@ -53,10 +51,9 @@ export default function Install() {
         <p className="text-slate-500 text-[15px] mb-12 leading-relaxed">
           Un comando. Sin dependencias de cloud.
           <br />
-          Tu AI agent, contenido a nivel kernel.
+          Tus agentes, contenidos a nivel kernel.
         </p>
 
-        {/* Install command — double-bezel */}
         <div className="p-px rounded-2xl bg-gradient-to-b from-sky-400/25 to-indigo-900/20 mb-3">
           <div className="flex items-center rounded-[calc(1rem-1px)] bg-[#0d1020] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] overflow-hidden">
             <div className="flex items-center gap-3 flex-1 px-5 py-4 min-w-0">

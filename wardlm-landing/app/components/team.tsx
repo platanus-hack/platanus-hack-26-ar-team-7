@@ -52,7 +52,7 @@ export default function Team() {
                 key={member.name}
                 className="group p-px rounded-2xl bg-gradient-to-b from-indigo-900/30 to-transparent transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:from-sky-900/30"
               >
-                <div className="rounded-[calc(1rem-1px)] bg-[#0b0e1a] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] flex flex-col gap-4 h-full">
+                <div className="rounded-[calc(1rem-1px)] bg-[#0b0e1a] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] flex flex-col gap-4">
                   <div className="relative w-14 h-14 rounded-xl overflow-hidden ring-1 ring-white/[0.08]">
                     <Image
                       src={member.image}
@@ -75,7 +75,7 @@ export default function Team() {
                     href={member.linkedin}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-slate-500 hover:text-sky-400 transition-colors duration-300 w-fit mt-auto"
+                    className="inline-flex items-center gap-1.5 text-slate-500 hover:text-sky-400 transition-colors duration-300 w-fit"
                   >
                     <LinkedinIcon size={13} />
                     <span className="font-mono text-[10px]">LinkedIn</span>

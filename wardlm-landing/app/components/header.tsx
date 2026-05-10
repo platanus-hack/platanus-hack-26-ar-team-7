@@ -16,7 +16,6 @@ export default function Header() {
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
-  /* lock body scroll when mobile menu open */
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => {
@@ -26,7 +25,6 @@ export default function Header() {
 
   return (
     <>
-      {/* ── floating pill ── */}
       <div className="fixed top-0 left-0 right-0 z-50 flex justify-center pt-5 px-4 pointer-events-none">
         <nav
           className={cn(
@@ -36,7 +34,6 @@ export default function Header() {
               : "bg-slate-950/55 backdrop-blur-lg"
           )}
         >
-          {/* Logo */}
           <a href="#" className="flex items-center gap-2 pl-1 pr-2">
             <Image
               src="/logo.png"
@@ -51,13 +48,10 @@ export default function Header() {
             </span>
           </a>
 
-          {/* Divider */}
           <span className="hidden md:block w-px h-3 bg-indigo-900 mx-1" />
 
-          {/* Desktop links */}
           <NavLinks />
 
-          {/* CTA */}
           <a
             href="#install"
             className="hidden md:inline-flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-full bg-sky-400 text-slate-950 text-[13px] font-semibold hover:bg-sky-300 active:scale-[0.97] transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] group"
@@ -76,7 +70,6 @@ export default function Header() {
             </span>
           </a>
 
-          {/* Hamburger */}
           <button
             onClick={() => setOpen(!open)}
             className="md:hidden w-10 h-8 flex items-center justify-center text-slate-300 hover:text-slate-100 transition-colors"
@@ -87,7 +80,6 @@ export default function Header() {
         </nav>
       </div>
 
-      {/* ── Mobile overlay ── */}
       <div
         className={cn(
           "fixed inset-0 z-40 flex flex-col items-center justify-center backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",

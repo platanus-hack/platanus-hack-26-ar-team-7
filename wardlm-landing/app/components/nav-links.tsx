@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 
 export const links = [
   { label: "Incidentes", href: "#incidentes" },
+  { label: "Arquitectura", href: "#arquitectura" },
   { label: "Equipo", href: "#equipo" },
 ];
 
