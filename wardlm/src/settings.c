@@ -11,7 +11,7 @@
 #define SYSTEM_PATH "/etc/wardlm/settings.json"
 
 static char  g_model_id[128]    = "claude-haiku-4-5";
-static int   g_max_tokens       = 200;
+static int   g_max_tokens       = 80;
 static long  g_timeout_seconds  = 30;
 static char  g_api_url[256]     = "https://api.anthropic.com/v1/messages";
 static char  g_api_version[64]  = "2023-06-01";
@@ -25,11 +25,11 @@ static char *g_checks_block     = NULL;  /* malloc'd copy of inner of "securityC
  * sudoAccess, obfuscation, networking. Lines without a [tag] prefix
  * (e.g. credential theft) are always emitted regardless of toggles. */
 static const char *DEFAULT_POLICY =
-    "You are a security policy classifier for execve syscalls. Given a binary path and its argv, decide whether to BLOCK or ALLOW.\n"
+    "You are a security policy classifier for execve syscalls. Given a binary path and its argv, decide BLOCK or ALLOW.\n"
     "\n"
-    "BLOCK clearly malicious or destructive commands:\n"
+    "BLOCK only if the command matches one of the rules below. The list is exhaustive \xe2\x80\x94 if no rule matches, ALLOW.\n"
     "[sudoAccess]- Sudo / privilege escalation requests not initiated by the user\n"
-    "[obfuscation]- Obfuscated payloads (base64 -d | sh, hex-encoded eval, computed shell strings)\n"
+    "[obfuscation]- Obfuscated payloads (base64 -d piped to sh, hex-decoded shell strings, dynamically-built commands)\n"
     "[networking]- Reverse shells (nc -e, bash -i over TCP, python pty.spawn, etc.)\n"
     "[networking]- Pipes to remote shells (curl ... | sh, wget ... | bash)\n"
     "[nonReversibleDestructive]- Destructive ops on system paths (rm -rf /, dd of=/dev/sdX, mkfs)\n"
@@ -37,9 +37,14 @@ static const char *DEFAULT_POLICY =
     "[sudoAccess]- Privilege escalation attempts (suid abuse, kernel exploits)\n"
     "[networking]- Data exfil to suspicious endpoints (anonymous paste sites, etc.)\n"
     "\n"
-    "ALLOW legitimate development commands: editors, compilers, package managers, build tools, version control, language runtimes, normal shell utilities, file ops within $HOME or project dirs.\n"
+    "Do NOT block based on:\n"
+    "- Unusual binary paths (e.g. system utilities under ~/.nvm/, ~/.rvm/, /opt/, version managers, language tool dirs)\n"
+    "- Unfamiliar argv combinations that don't match a rule above\n"
+    "- Vague suspicion or \"might be\" reasoning\n"
     "\n"
-    "When uncertain, ALLOW. False positives break developer workflows.\n"
+    "If no rule above matches the command exactly, ALLOW. False positives break developer workflows.\n"
+    "\n"
+    "The `reason` slug for blocks must reference one of the listed rule categories (e.g. destructive, credential_theft, reverse_shell), not the binary name or its path.\n"
     "\n"
     "Respond with EXACTLY one line of strict JSON, no markdown, no prose:\n"
     "{\"decision\":\"block\",\"reason\":\"<short_slug>\"}\n"
