@@ -7,16 +7,20 @@
 
 /* Reads a NUL-terminated C string from address `addr` in process `pid`.
  * Writes up to out_len-1 bytes plus a NUL into `out`. Returns 0 on
- * success, -1 on error (target memory unreadable, process gone, etc). */
+ * success, 1 if the string did not fit in `out`, and -1 on error
+ * (target memory unreadable, process gone, etc). */
 int read_remote_cstr(pid_t pid, uint64_t addr, char *out, size_t out_len);
 
 /* Reads a NULL-terminated argv array starting at `argv_addr` in process
  * `pid`. Each non-NULL slot is malloc'd and copied into argv_out. The
  * caller owns the strings and must release them with free_argv(). The
  * argv_out buffer must hold at least max_argv + 1 entries. Returns the
- * number of strings read (excluding the trailing NULL). */
+ * number of strings read (excluding the trailing NULL). If the argv array
+ * or any arg cannot be read fully, sets `truncated_out` to 1 so callers can
+ * fail closed instead of classifying an incomplete command. */
 int read_remote_argv(pid_t pid, uint64_t argv_addr,
-                     char **argv_out, int max_argv);
+                     char **argv_out, int max_argv,
+                     int *truncated_out);
 
 void free_argv(char **argv, int argc);
 

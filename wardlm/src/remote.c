@@ -21,6 +21,7 @@ static ssize_t read_remote(pid_t pid, uint64_t addr, void *dst, size_t len) {
 }
 
 int read_remote_cstr(pid_t pid, uint64_t addr, char *out, size_t out_len) {
+    if (out_len == 0) return -1;
     size_t i = 0;
     while (i + 1 < out_len) {
         size_t chunk = 256;
@@ -33,25 +34,41 @@ int read_remote_cstr(pid_t pid, uint64_t addr, char *out, size_t out_len) {
         i += (size_t)got;
     }
     out[out_len - 1] = '\0';
-    return 0;
+    return 1;
 }
 
 int read_remote_argv(pid_t pid, uint64_t argv_addr,
-                     char **argv_out, int max_argv) {
+                     char **argv_out, int max_argv,
+                     int *truncated_out) {
+    if (truncated_out) *truncated_out = 0;
     int argc = 0;
     while (argc < max_argv) {
         uint64_t ptr;
         if (read_remote(pid, argv_addr + (uint64_t)argc * sizeof(uint64_t),
-                        &ptr, sizeof(ptr)) != (ssize_t)sizeof(ptr))
+                        &ptr, sizeof(ptr)) != (ssize_t)sizeof(ptr)) {
+            if (truncated_out) *truncated_out = 1;
             break;
+        }
         if (ptr == 0) break;
         char *buf = malloc(MAX_ARG_LEN);
-        if (!buf) break;
-        if (read_remote_cstr(pid, ptr, buf, MAX_ARG_LEN) < 0) {
+        if (!buf) {
+            if (truncated_out) *truncated_out = 1;
+            break;
+        }
+        int rc = read_remote_cstr(pid, ptr, buf, MAX_ARG_LEN);
+        if (rc != 0) {
+            if (truncated_out) *truncated_out = 1;
             free(buf);
             break;
         }
         argv_out[argc++] = buf;
+    }
+    if (argc == max_argv) {
+        uint64_t ptr;
+        if (read_remote(pid, argv_addr + (uint64_t)argc * sizeof(uint64_t),
+                        &ptr, sizeof(ptr)) != (ssize_t)sizeof(ptr) || ptr != 0) {
+            if (truncated_out) *truncated_out = 1;
+        }
     }
     argv_out[argc] = NULL;
     return argc;

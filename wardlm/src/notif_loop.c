@@ -80,13 +80,31 @@ void notif_loop(int listener_fd, volatile sig_atomic_t *stop_flag) {
         char path[MAX_PATH];
         char *argv[MAX_ARGV + 1] = {0};
         int argc = 0;
+        const char *reason = NULL;
 
-        if (read_remote_cstr(req->pid, path_ptr, raw, sizeof(raw)) < 0)
+        int path_status = read_remote_cstr(req->pid, path_ptr, raw, sizeof(raw));
+        int metadata_incomplete = 0;
+
+        if (path_status < 0) {
             snprintf(path, sizeof(path), "<unreadable>");
-        else
+            metadata_incomplete = 1;
+            reason = "unreadable_exec_path";
+        } else if (path_status > 0) {
+            snprintf(path, sizeof(path), "<truncated>");
+            metadata_incomplete = 1;
+            reason = "truncated_exec_path";
+        } else {
             resolve_exec_path(req->pid, is_execveat, dirfd, raw,
                               execveat_flags, path, sizeof(path));
-        argc = read_remote_argv(req->pid, argv_ptr, argv, MAX_ARGV);
+        }
+
+        int argv_incomplete = 0;
+        argc = read_remote_argv(req->pid, argv_ptr, argv, MAX_ARGV,
+                                &argv_incomplete);
+        if (argv_incomplete && !metadata_incomplete) {
+            metadata_incomplete = 1;
+            reason = "incomplete_argv";
+        }
 
         __u64 id = req->id;
         if (ioctl(listener_fd, SECCOMP_IOCTL_NOTIF_ID_VALID, &id) < 0) {
@@ -94,8 +112,9 @@ void notif_loop(int listener_fd, volatile sig_atomic_t *stop_flag) {
             continue;
         }
 
-        const char *reason = NULL;
-        int block = policy_should_block(path, argv, argc, &reason);
+        int block = metadata_incomplete
+            ? 1
+            : policy_should_block(path, argv, argc, &reason);
 
         memset(resp, 0, sizes.seccomp_notif_resp);
         resp->id = req->id;
