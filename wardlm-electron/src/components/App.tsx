@@ -3,7 +3,7 @@ import React, {
   useMemo,
   useReducer,
   useRef,
-  useDeferredValue,
+  useState,
 } from 'react';
 import {
   AGENTS,
@@ -28,7 +28,7 @@ import { Sidebar, View } from './Sidebar';
 import { DashboardStats, HomeDashboard } from './HomeDashboard';
 import { SettingsView } from './SettingsView';
 
-const MAX_ENTRIES = 5000;
+const MAX_ENTRIES = 50000;
 
 export type LogEntry = {
   id: number;
@@ -40,6 +40,7 @@ export type LogEntry = {
   path: string;
   argv: string[];
   raw: string;
+  haystack: string;
 };
 
 export type FilterField = 'agent' | 'decision' | 'reason' | 'path' | 'pid';
@@ -99,16 +100,20 @@ function parseEntry(text: string, id: number): LogEntry | null {
   if (typeof ts !== 'number' || typeof decision !== 'string') return null;
   const argvRaw = obj.argv;
   const argv = Array.isArray(argvRaw) ? argvRaw.map((a) => String(a)) : [];
+  const agent = typeof obj.agent === 'string' ? obj.agent : '';
+  const reason = typeof obj.reason === 'string' ? obj.reason : '';
+  const path = typeof obj.path === 'string' ? obj.path : '';
   return {
     id,
     ts,
-    agent: typeof obj.agent === 'string' ? obj.agent : '',
+    agent,
     decision,
-    reason: typeof obj.reason === 'string' ? obj.reason : '',
+    reason,
     pid: typeof obj.pid === 'number' ? obj.pid : 0,
-    path: typeof obj.path === 'string' ? obj.path : '',
+    path,
     argv,
     raw: text,
+    haystack: `${agent} ${decision} ${reason} ${path} ${argv.join(' ')}`.toLowerCase(),
   };
 }
 
@@ -391,10 +396,14 @@ export function App(): JSX.Element {
     };
   }, []);
 
-  const deferredQuery = useDeferredValue(state.query);
+  const [debouncedQuery, setDebouncedQuery] = useState(state.query);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(state.query), 120);
+    return () => clearTimeout(t);
+  }, [state.query]);
 
   const visibleEntries = useMemo(() => {
-    const q = deferredQuery.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     const filterFields = Object.keys(state.columnFilters) as FilterField[];
     const hasFilters = filterFields.length > 0;
     if (!q && !hasFilters) return state.entries;
@@ -404,13 +413,9 @@ export function App(): JSX.Element {
         if (!set || set.size === 0) continue;
         if (!set.has(entryFieldValue(entry, field))) return false;
       }
-      if (q) {
-        const haystack = `${entry.agent} ${entry.decision} ${entry.reason} ${entry.path} ${entry.argv.join(' ')}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
+      return !q || entry.haystack.includes(q);
     });
-  }, [state.entries, deferredQuery, state.columnFilters]);
+  }, [state.entries, debouncedQuery, state.columnFilters]);
 
   const handleRetry = async () => {
     dispatch({ type: 'CLEAR_ERROR' });

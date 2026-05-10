@@ -844,7 +844,6 @@ button.agent-stat:focus-visible {
 
 .logtable-scroll {
   flex: 1 1 auto;
-  overflow: auto;
   background: var(--bg);
 }
 
@@ -861,13 +860,20 @@ button.agent-stat:focus-visible {
   border-spacing: 0;
   font-family: var(--font-mono);
   font-size: 12px;
-  table-layout: fixed;
+}
+
+/* Use grid layout on rows so the expanded JSON cell can span all columns
+   on a second grid row inside a single <tr> (Virtuoso auto-measures the
+   resulting taller row). Column tracks are shared between header and body
+   so the columns line up. */
+.logtable thead tr,
+.logtable tbody tr {
+  display: grid;
+  grid-template-columns: 170px 120px 92px 180px 70px 220px minmax(0, 1fr);
+  align-items: center;
 }
 
 .logtable thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   background: var(--bg-elev);
   color: var(--fg-muted);
   text-transform: uppercase;
@@ -885,19 +891,15 @@ button.agent-stat:focus-visible {
   padding: 4px 10px;
   border-bottom: 1px solid var(--border);
   color: var(--fg);
-  vertical-align: middle;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
-.logtable .col-ts      { width: 170px; color: var(--fg-muted); }
-.logtable .col-agent   { width: 120px; }
-.logtable .col-decision{ width: 92px; }
-.logtable .col-reason  { width: 180px; }
-.logtable .col-pid     { width: 70px; color: var(--fg-muted); }
-.logtable .col-path    { width: 220px; }
-.logtable .col-argv    { width: auto; color: var(--fg-muted); }
+.logtable .col-ts      { color: var(--fg-muted); }
+.logtable .col-pid     { color: var(--fg-muted); }
+.logtable .col-argv    { color: var(--fg-muted); }
 
 .logrow {
   cursor: pointer;
@@ -978,14 +980,22 @@ button.agent-stat:focus-visible {
   filter: brightness(1.15);
 }
 
-.logrow__expanded td {
+.logrow--expanded {
+  grid-template-rows: auto auto;
+}
+
+.logtable td.col-expanded {
+  grid-column: 1 / -1;
+  grid-row: 2;
   background: var(--bg-elev-2);
   padding: 0;
   border-bottom: 1px solid var(--border);
   white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }
 
-.logrow__expanded pre {
+.logtable td.col-expanded pre {
   margin: 0;
   padding: 12px 16px;
   font-family: var(--font-mono);
