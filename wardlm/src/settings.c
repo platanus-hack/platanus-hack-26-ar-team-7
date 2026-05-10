@@ -32,7 +32,7 @@ static const char *DEFAULT_POLICY =
     "[obfuscation]- Obfuscated payloads (base64 -d piped to sh, hex-decoded shell strings, dynamically-built commands)\n"
     "[networking]- Reverse shells (nc -e, bash -i over TCP, python pty.spawn, etc.)\n"
     "[networking]- Pipes to remote shells (curl ... | sh, wget ... | bash)\n"
-    "[nonReversibleDestructive]- Destructive ops on system paths (rm -rf /, dd of=/dev/sdX, mkfs)\n"
+    "[nonReversibleDestructive]- Destructive data ops that are hard or impossible to reverse\n"
     "- Credential theft (reading /etc/shadow, ~/.ssh/id_*, GPG keys)\n"
     "[sudoAccess]- Privilege escalation attempts (suid abuse, kernel exploits)\n"
     "[networking]- Data exfil to suspicious endpoints (anonymous paste sites, etc.)\n"
