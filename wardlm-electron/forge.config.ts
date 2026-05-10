@@ -36,10 +36,13 @@ const config: ForgeConfig = {
     new MakerDeb({
       options: {
         maintainer: 'Daniel Salmun <salmundani@gmail.com>',
-        categories: ['System', 'Utility'],
+        homepage: 'https://wardlm.vercel.app',
+        productName: 'wardlm',
+        description: 'Real-time desktop viewer for the wardlm audit log.',
         productDescription:
           'Real-time viewer for the wardlm audit log (/var/log/wardlm/wardlm.log).',
         section: 'admin',
+        categories: ['System', 'Utility'],
         icon: './assets/icon.png',
         scripts: {
           postinst: './assets/linux/postinst',
