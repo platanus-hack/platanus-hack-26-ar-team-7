@@ -10,7 +10,7 @@ type Props = {
   onJumpToLatest: () => void;
 };
 
-const NEAR_BOTTOM_PX = 8;
+const NEAR_TOP_PX = 8;
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   year: 'numeric',
@@ -101,15 +101,15 @@ export function LogTable({
   const internalScroll = useRef(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  const isNearBottom = (el: HTMLDivElement): boolean =>
-    el.scrollTop + el.clientHeight >= el.scrollHeight - NEAR_BOTTOM_PX;
+  const isNearTop = (el: HTMLDivElement): boolean =>
+    el.scrollTop <= NEAR_TOP_PX;
 
   useLayoutEffect(() => {
     if (!autoScroll) return;
     const el = ref.current;
     if (!el) return;
     internalScroll.current = true;
-    el.scrollTop = el.scrollHeight;
+    el.scrollTop = 0;
     requestAnimationFrame(() => {
       internalScroll.current = false;
     });
@@ -120,7 +120,7 @@ export function LogTable({
     if (!el) return;
     const onScroll = () => {
       if (internalScroll.current) return;
-      if (autoScroll && !isNearBottom(el)) {
+      if (autoScroll && !isNearTop(el)) {
         onUserScrollUp();
       }
     };
@@ -132,7 +132,7 @@ export function LogTable({
     const el = ref.current;
     if (el) {
       internalScroll.current = true;
-      el.scrollTop = el.scrollHeight;
+      el.scrollTop = 0;
       requestAnimationFrame(() => {
         internalScroll.current = false;
       });

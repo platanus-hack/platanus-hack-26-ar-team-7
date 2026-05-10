@@ -397,19 +397,22 @@ export function App(): JSX.Element {
     const q = deferredQuery.trim().toLowerCase();
     const filterFields = Object.keys(state.columnFilters) as FilterField[];
     const hasFilters = filterFields.length > 0;
-    if (!q && !hasFilters) return state.entries;
-    return state.entries.filter((entry) => {
-      for (const field of filterFields) {
-        const set = state.columnFilters[field];
-        if (!set || set.size === 0) continue;
-        if (!set.has(entryFieldValue(entry, field))) return false;
-      }
-      if (q) {
-        const haystack = `${entry.agent} ${entry.decision} ${entry.reason} ${entry.path} ${entry.argv.join(' ')}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
-    });
+    const matched =
+      !q && !hasFilters
+        ? state.entries
+        : state.entries.filter((entry) => {
+            for (const field of filterFields) {
+              const set = state.columnFilters[field];
+              if (!set || set.size === 0) continue;
+              if (!set.has(entryFieldValue(entry, field))) return false;
+            }
+            if (q) {
+              const haystack = `${entry.agent} ${entry.decision} ${entry.reason} ${entry.path} ${entry.argv.join(' ')}`.toLowerCase();
+              if (!haystack.includes(q)) return false;
+            }
+            return true;
+          });
+    return matched.slice().reverse();
   }, [state.entries, deferredQuery, state.columnFilters]);
 
   const handleRetry = async () => {
